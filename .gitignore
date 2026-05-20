@@ -1,0 +1,10 @@
+/.idea/
+/.php-cs-fixer.cache
+/.phpunit.cache/
+/composer.lock
+/var/
+/vendor/
+/vendor-bin/*/composer.lock
+/vendor-bin/*/vendor/
+/.playwright-mcp/
+/src/config.php
