@@ -220,6 +220,30 @@ final class IndexFunctionsTest extends TestCase
         $this->assertSame('<em>None installed</em>', renderInstalledPackageListHtml([], ['none_installed' => 'None installed']));
     }
 
+    public function testRenderComposerMetadataSourceListHtml(): void
+    {
+        $html = renderComposerMetadataSourceListHtml([
+            [
+                'path' => 'runner/acme/core/admin/composer.json',
+                'package_type' => 'runner',
+                'metadata' => [],
+            ],
+            [
+                'path' => 'runner/acme/plugin/blog/composer.json',
+                'package_type' => 'plugin',
+                'metadata' => [],
+            ],
+        ], [
+            'processed_composer_files' => 'Processed composer.json files',
+            'and_more' => '... and :count more',
+        ]);
+
+        $this->assertStringContainsString('Processed composer.json files', $html);
+        $this->assertStringContainsString('runner/acme/core/admin/composer.json', $html);
+        $this->assertStringContainsString('runner/acme/plugin/blog/composer.json', $html);
+        $this->assertSame('', renderComposerMetadataSourceListHtml([], ['processed_composer_files' => 'x', 'and_more' => 'y']));
+    }
+
     public function testNormalizeRelativePath(): void
     {
         $this->assertSame('index.php', normalizeRelativePath('index.php'));
@@ -611,7 +635,7 @@ ENV;
         $this->assertSame("OAK_DIR=example-data\nOAK_DEFAULT_LANGUAGE=de\n", file_get_contents($envPath));
     }
 
-    public function testSyncPackageEnvToEnvLocalDetailedReportsWrittenVariables(): void
+    public function testSyncPackageEnvToEnvLocalDetailedReportsWrittenAndSkippedVariables(): void
     {
         $envPath = $this->createTempDirectory().'/.env.local';
         file_put_contents($envPath, "APP_ENV=prod\nOAK_DIR=existing\n");
@@ -633,6 +657,9 @@ ENV;
             'OAK_DEFAULT_LANGUAGE=en',
             'OAK_AVAILABLE_LANGUAGES=en|de',
         ], $result['written_lines']);
+        $this->assertSame([
+            'OAK_DIR=example',
+        ], $result['skipped_existing_lines']);
     }
 
     public function testSyncPackageEnvToEnvLocalReturnsFalseWithoutNewVariables(): void
@@ -656,19 +683,29 @@ ENV;
         $this->assertFalse(syncPackageEnvToEnvLocal($envPath, ['extra' => []], 'runner'));
     }
 
-    public function testResolveProjectEnvComposerMetadataSourcesFindsRunnerCoreAndPlugins(): void
+    public function testResolveProjectEnvComposerMetadataSourcesFindsRunnerCoreAndPluginsInCoreThenPluginOrder(): void
     {
         $targetDir = $this->createTempDirectory();
-        mkdir($targetDir.'/runner/acme/core/site', 0o755, true);
+        mkdir($targetDir.'/runner/zeta/core/site', 0o755, true);
+        mkdir($targetDir.'/runner/acme/core/admin', 0o755, true);
+        mkdir($targetDir.'/runner/zeta/plugin/shop', 0o755, true);
         mkdir($targetDir.'/runner/acme/plugin/blog', 0o755, true);
-        mkdir($targetDir.'/runner/acme/plugin/shop', 0o755, true);
         mkdir($targetDir.'/runner/acme/plugin/empty', 0o755, true);
 
-        file_put_contents($targetDir.'/runner/acme/core/site/composer.json', json_encode([
+        file_put_contents($targetDir.'/runner/zeta/core/site/composer.json', json_encode([
             'extra' => [
                 'oak-engine-plugin' => [
                     'env' => [
-                        'dir' => 'example',
+                        'dir' => 'site',
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($targetDir.'/runner/acme/core/admin/composer.json', json_encode([
+            'extra' => [
+                'oak-engine-plugin' => [
+                    'env' => [
+                        'dir' => 'admin',
                     ],
                 ],
             ],
@@ -682,7 +719,7 @@ ENV;
                 ],
             ],
         ], JSON_THROW_ON_ERROR));
-        file_put_contents($targetDir.'/runner/acme/plugin/shop/composer.json', json_encode([
+        file_put_contents($targetDir.'/runner/zeta/plugin/shop/composer.json', json_encode([
             'extra' => [
                 'oak-engine-plugin' => [
                     'env' => [
@@ -697,13 +734,26 @@ ENV;
 
         $this->assertSame([
             [
-                'path' => 'runner/acme/core/site/composer.json',
+                'path' => 'runner/acme/core/admin/composer.json',
                 'package_type' => 'runner',
                 'metadata' => [
                     'extra' => [
                         'oak-engine-plugin' => [
                             'env' => [
-                                'dir' => 'example',
+                                'dir' => 'admin',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'path' => 'runner/zeta/core/site/composer.json',
+                'package_type' => 'runner',
+                'metadata' => [
+                    'extra' => [
+                        'oak-engine-plugin' => [
+                            'env' => [
+                                'dir' => 'site',
                             ],
                         ],
                     ],
@@ -723,7 +773,7 @@ ENV;
                 ],
             ],
             [
-                'path' => 'runner/acme/plugin/shop/composer.json',
+                'path' => 'runner/zeta/plugin/shop/composer.json',
                 'package_type' => 'plugin',
                 'metadata' => [
                     'extra' => [
@@ -780,10 +830,58 @@ ENV;
             'OAK_DEFAULT_LANGUAGE=en',
             'OAK_AVAILABLE_LANGUAGES=en|de',
         ], $result['written_lines']);
+        $this->assertSame([], $result['skipped_existing_lines']);
         $this->assertSame(
             "OAK_DIR=example\nOAK_CORE_BUNDLE_CLASS=Oak\\Core\\IndexBundle\\IndexBundle\nOAK_DEFAULT_LANGUAGE=en\nOAK_AVAILABLE_LANGUAGES=en|de\n",
             file_get_contents($envPath),
         );
+    }
+
+    public function testSyncPackageEnvComposerMetadataSourcesToEnvLocalDetailedReportsExistingValues(): void
+    {
+        $envPath = $this->createTempDirectory().'/.env.local';
+        file_put_contents($envPath, "OAK_DIR=existing\nOAK_DEFAULT_LANGUAGE=de\n");
+
+        $result = syncPackageEnvComposerMetadataSourcesToEnvLocalDetailed($envPath, [
+            [
+                'path' => 'runner/acme/core/site/composer.json',
+                'package_type' => 'runner',
+                'metadata' => [
+                    'extra' => [
+                        'oak-engine-plugin' => [
+                            'env' => [
+                                'dir' => 'example',
+                                'core-bundle-class' => 'Oak\\Core\\IndexBundle\\IndexBundle',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'path' => 'runner/acme/plugin/blog/composer.json',
+                'package_type' => 'plugin',
+                'metadata' => [
+                    'extra' => [
+                        'oak-engine-plugin' => [
+                            'env' => [
+                                'default-language' => 'en',
+                                'available-languages' => 'en|de',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertTrue($result['written']);
+        $this->assertSame([
+            'OAK_CORE_BUNDLE_CLASS=Oak\\Core\\IndexBundle\\IndexBundle',
+            'OAK_AVAILABLE_LANGUAGES=en|de',
+        ], $result['written_lines']);
+        $this->assertSame([
+            'OAK_DIR=example',
+            'OAK_DEFAULT_LANGUAGE=en',
+        ], $result['skipped_existing_lines']);
     }
 
     public function testResolvePackageEnvComposerMetadataPrefersNestedComposerWithEnv(): void
@@ -796,13 +894,23 @@ ENV;
                 ],
             ],
         ], JSON_THROW_ON_ERROR));
-        mkdir($targetDir.'/runner', 0o755, true);
-        file_put_contents($targetDir.'/runner/composer.json', json_encode([
+        mkdir($targetDir.'/runner/acme/core/site', 0o755, true);
+        mkdir($targetDir.'/runner/acme/plugin/blog', 0o755, true);
+        file_put_contents($targetDir.'/runner/acme/core/site/composer.json', json_encode([
             'extra' => [
                 'oak-engine-plugin' => [
                     'env' => [
                         'dir' => 'example',
                         'default-language' => 'en',
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($targetDir.'/runner/acme/plugin/blog/composer.json', json_encode([
+            'extra' => [
+                'oak-engine-plugin' => [
+                    'env' => [
+                        'default-language' => 'de',
                     ],
                 ],
             ],

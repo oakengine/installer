@@ -216,7 +216,6 @@ PHP;
         $this->assertContains('README.md', $result['skipped_files']);
         $this->assertSame('runner', file_get_contents($targetDir.'/app/file.txt'));
         $this->assertSame('keep', file_get_contents($targetDir.'/.env.local'));
-        $this->assertSame('example', $result['composer_metadata']['extra']['oak-engine-plugin']['env']['dir']);
     }
 
     private static function findFreePort(): int

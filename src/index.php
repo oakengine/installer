@@ -346,8 +346,7 @@ namespace Oak\Engine\Installer {
          * @return array{
          *     extracted: list<string>,
          *     skipped_files: list<string>,
-         *     skipped_folders: list<string>,
-         *     composer_metadata: array<string, mixed>
+         *     skipped_folders: list<string>
          * }
          */
         public function extractTarGz(
@@ -384,9 +383,8 @@ namespace Oak\Engine\Installer {
                 $archive->extractTo($extractionDirectory, null, true);
 
                 $sourceDirectory = $this->resolveSourceDirectory($extractionDirectory);
-                $composerMetadata = $this->readComposerMetadata($sourceDirectory.'/composer.json');
 
-                $result = $this->copyExtractedDirectory(
+                return $this->copyExtractedDirectory(
                     $sourceDirectory,
                     $targetDir,
                     $excludeFolders,
@@ -394,9 +392,6 @@ namespace Oak\Engine\Installer {
                     $whitelistFolders,
                     $whitelistFiles,
                 );
-                $result['composer_metadata'] = $composerMetadata;
-
-                return $result;
             } finally {
                 $this->recursiveDelete($tempDirectory);
             }
@@ -417,29 +412,6 @@ namespace Oak\Engine\Installer {
             }
 
             return $extractionDirectory;
-        }
-
-        /**
-         * @return array<string, mixed>
-         */
-        private function readComposerMetadata(string $composerPath): array
-        {
-            if (!is_file($composerPath)) {
-                return [];
-            }
-
-            $content = file_get_contents($composerPath);
-            if (!is_string($content)) {
-                return [];
-            }
-
-            $decoded = json_decode($content, true);
-            if (!is_array($decoded)) {
-                return [];
-            }
-
-            /** @var array<string, mixed> $decoded */
-            return $decoded;
         }
 
         /**
@@ -1016,6 +988,28 @@ namespace {
         }
 
         return implode(', ', $parts);
+    }
+
+    /**
+     * @param list<array{path: string, package_type: string, metadata: array<string, mixed>}> $composerMetadataSources
+     * @param array<string, string>                                                           $lang
+     */
+    function renderComposerMetadataSourceListHtml(array $composerMetadataSources, array $lang): string
+    {
+        if ([] === $composerMetadataSources) {
+            return '';
+        }
+
+        $html = '<div class="success"><strong>'.resolveLangKey('processed_composer_files', $lang).'</strong><ul class="file-list">';
+        foreach (array_slice($composerMetadataSources, 0, 20) as $composerMetadataSource) {
+            $html .= '<li><code>'.htmlspecialchars($composerMetadataSource['path']).'</code></li>';
+        }
+
+        if (count($composerMetadataSources) > 20) {
+            $html .= '<li><em>'.resolveLangKey('and_more', $lang, ['count' => (count($composerMetadataSources) - 20)]).'</em></li>';
+        }
+
+        return $html.'</ul></div>';
     }
 
     /**
@@ -2143,13 +2137,19 @@ HTML;
     /**
      * @param array<string, mixed> $composerMetadata
      *
-     * @return array{written: bool, written_lines: list<string>}
+     * @return array{
+     *     written: bool,
+     *     written_lines: list<string>,
+     *     written_keys: list<string>,
+     *     skipped_existing_lines: list<string>,
+     *     skipped_existing_keys: list<string>
+     * }
      */
     function syncPackageEnvToEnvLocalDetailed(string $envPath, array $composerMetadata, string $packageType): array
     {
         $packageEnv = extractPackageEnvConfig($composerMetadata, $packageType);
         if ([] === $packageEnv) {
-            return ['written' => false, 'written_lines' => []];
+            return ['written' => false, 'written_lines' => [], 'written_keys' => [], 'skipped_existing_lines' => [], 'skipped_existing_keys' => []];
         }
 
         $envVarMap = [
@@ -2163,11 +2163,13 @@ HTML;
 
         /** @var array<string, string> $linesToAppend */
         $linesToAppend = [];
+        /** @var array<string, string> $skippedExistingLines */
+        $skippedExistingLines = [];
         $content = '';
         if (is_file($envPath)) {
             $existingContent = file_get_contents($envPath);
             if (false === $existingContent) {
-                return ['written' => false, 'written_lines' => []];
+                return ['written' => false, 'written_lines' => [], 'written_keys' => [], 'skipped_existing_lines' => [], 'skipped_existing_keys' => []];
             }
             $content = str_replace(["\r\n", "\r"], "\n", $existingContent);
         }
@@ -2184,6 +2186,7 @@ HTML;
             }
 
             if (1 === preg_match('/^\s*#?\s*'.preg_quote($targetKey, '/').'\s*=.*$/m', $content)) {
+                $skippedExistingLines[$targetKey] = $targetKey.'='.$normalizedValue;
                 continue;
             }
 
@@ -2191,12 +2194,18 @@ HTML;
         }
 
         if ([] === $linesToAppend) {
-            return ['written' => false, 'written_lines' => []];
+            return [
+                'written' => false,
+                'written_lines' => [],
+                'written_keys' => [],
+                'skipped_existing_lines' => array_values($skippedExistingLines),
+                'skipped_existing_keys' => array_keys($skippedExistingLines),
+            ];
         }
 
         $directory = dirname($envPath);
         if (!is_dir($directory) && !mkdir($directory, 0o755, true) && !is_dir($directory)) {
-            return ['written' => false, 'written_lines' => []];
+            return ['written' => false, 'written_lines' => [], 'written_keys' => [], 'skipped_existing_lines' => [], 'skipped_existing_keys' => []];
         }
 
         $updatedContent = rtrim($content, "\n");
@@ -2205,10 +2214,16 @@ HTML;
             : $updatedContent."\n".implode("\n", $linesToAppend)."\n";
 
         if (false === file_put_contents($envPath, $updatedContent)) {
-            return ['written' => false, 'written_lines' => []];
+            return ['written' => false, 'written_lines' => [], 'written_keys' => [], 'skipped_existing_lines' => [], 'skipped_existing_keys' => []];
         }
 
-        return ['written' => true, 'written_lines' => array_values($linesToAppend)];
+        return [
+            'written' => true,
+            'written_lines' => array_values($linesToAppend),
+            'written_keys' => array_keys($linesToAppend),
+            'skipped_existing_lines' => array_values($skippedExistingLines),
+            'skipped_existing_keys' => array_keys($skippedExistingLines),
+        ];
     }
 
     /**
@@ -2263,11 +2278,18 @@ HTML;
     /**
      * @param list<array{path: string, package_type: string, metadata: array<string, mixed>}> $composerMetadataSources
      *
-     * @return array{written: bool, written_lines: list<string>}
+     * @return array{
+     *     written: bool,
+     *     written_lines: list<string>,
+     *     skipped_existing_lines: list<string>
+     * }
      */
     function syncPackageEnvComposerMetadataSourcesToEnvLocalDetailed(string $envPath, array $composerMetadataSources): array
     {
         $writtenLines = [];
+        $writtenKeys = [];
+        $skippedExistingLines = [];
+        $skippedExistingKeys = [];
 
         foreach ($composerMetadataSources as $composerMetadataSource) {
             $result = syncPackageEnvToEnvLocalDetailed(
@@ -2281,11 +2303,27 @@ HTML;
                     $writtenLines[] = $writtenLine;
                 }
             }
+
+            foreach ($result['written_keys'] as $writtenKey) {
+                if (!in_array($writtenKey, $writtenKeys, true)) {
+                    $writtenKeys[] = $writtenKey;
+                }
+            }
+
+            foreach ($result['skipped_existing_keys'] as $index => $skippedExistingKey) {
+                if (in_array($skippedExistingKey, $writtenKeys, true) || in_array($skippedExistingKey, $skippedExistingKeys, true)) {
+                    continue;
+                }
+
+                $skippedExistingKeys[] = $skippedExistingKey;
+                $skippedExistingLines[] = $result['skipped_existing_lines'][$index];
+            }
         }
 
         return [
             'written' => [] !== $writtenLines,
             'written_lines' => $writtenLines,
+            'skipped_existing_lines' => $skippedExistingLines,
         ];
     }
 
@@ -2294,47 +2332,15 @@ HTML;
      */
     function resolvePackageEnvComposerMetadata(string $targetDir, string $packageType): array
     {
-        $scanDir = rtrim($targetDir, '/');
-        if (!is_dir($scanDir)) {
-            return [];
-        }
-
-        /** @var array<int, array{path: string, depth: int, metadata: array<string, mixed>}> $matches */
-        $matches = [];
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($scanDir, FilesystemIterator::SKIP_DOTS),
-        );
-
-        foreach ($iterator as $item) {
-            if (!$item instanceof SplFileInfo || !$item->isFile() || 'composer.json' !== $item->getBasename()) {
+        foreach (resolveProjectEnvComposerMetadataSources($targetDir) as $metadataSource) {
+            if (normalizePackageType($metadataSource['package_type']) !== normalizePackageType($packageType)) {
                 continue;
             }
 
-            $path = $item->getPathname();
-            $metadata = readComposerJsonMetadata($path);
-            if ([] === extractPackageEnvConfig($metadata, $packageType)) {
-                continue;
-            }
-
-            $relativePath = substr(str_replace('\\', '/', $path), strlen(str_replace('\\', '/', $scanDir)) + 1);
-            $depth = substr_count((string) $relativePath, '/');
-            $matches[] = [
-                'path' => (string) $relativePath,
-                'depth' => $depth,
-                'metadata' => $metadata,
-            ];
+            return $metadataSource['metadata'];
         }
 
-        if ([] === $matches) {
-            return [];
-        }
-
-        usort(
-            $matches,
-            static fn (array $left, array $right): int => [$left['depth'], $left['path']] <=> [$right['depth'], $right['path']],
-        );
-
-        return $matches[0]['metadata'];
+        return [];
     }
 
     /**
@@ -3175,32 +3181,11 @@ HTML;
                 $whitelistFiles,
             );
             $envPath = rtrim((string) $targetDirStr, '/').'/.env.local';
-            $envSyncResult = ['written' => false, 'written_lines' => []];
-            if (in_array($packageType, ['runner', 'data'], true)) {
-                $archiveComposerMetadata = is_array($extractZipResult['composer_metadata'] ?? null)
-                    ? $extractZipResult['composer_metadata']
-                    : [];
-                $envSyncResult = syncPackageEnvToEnvLocalDetailed($envPath, $archiveComposerMetadata, $packageType);
-            }
-
-            if (in_array($packageType, ['plugin', 'data'], true)) {
-                $projectEnvSyncResult = syncPackageEnvComposerMetadataSourcesToEnvLocalDetailed(
-                    $envPath,
-                    resolveProjectEnvComposerMetadataSources((string) $targetDirStr),
-                );
-
-                if ([] !== $projectEnvSyncResult['written_lines']) {
-                    /** @var list<string> $mergedWrittenLines */
-                    $mergedWrittenLines = array_values(array_unique(array_merge(
-                        $envSyncResult['written_lines'],
-                        $projectEnvSyncResult['written_lines'],
-                    )));
-                    $envSyncResult = [
-                        'written' => true,
-                        'written_lines' => $mergedWrittenLines,
-                    ];
-                }
-            }
+            $composerMetadataSources = resolveProjectEnvComposerMetadataSources((string) $targetDirStr);
+            $envSyncResult = syncPackageEnvComposerMetadataSourcesToEnvLocalDetailed(
+                $envPath,
+                $composerMetadataSources,
+            );
 
             if ('runner' === $packageType) {
                 $installUuidManager->ensureEnvLocalInstallUuid($envPath);
@@ -3221,13 +3206,20 @@ HTML;
             }
             $content .= '</div>';
 
-            if ([] !== $envSyncResult['written_lines']) {
+            if ([] !== $envSyncResult['written_lines'] || [] !== $envSyncResult['skipped_existing_lines']) {
                 $content .= '<div class="success"><strong>.env.local</strong><ul class="file-list">';
+                $content .= '<li>'.resolveLangKey('env_values_created', $langForGlobal, ['count' => count($envSyncResult['written_lines'])]).'</li>';
                 foreach ($envSyncResult['written_lines'] as $writtenEnvLine) {
                     $content .= '<li><code>'.htmlspecialchars($writtenEnvLine).'</code></li>';
                 }
+                $content .= '<li>'.resolveLangKey('env_values_skipped_existing', $langForGlobal, ['count' => count($envSyncResult['skipped_existing_lines'])]).'</li>';
+                foreach ($envSyncResult['skipped_existing_lines'] as $skippedEnvLine) {
+                    $content .= '<li><code>'.htmlspecialchars($skippedEnvLine).'</code></li>';
+                }
                 $content .= '</ul></div>';
             }
+
+            $content .= renderComposerMetadataSourceListHtml($composerMetadataSources, $langForGlobal);
 
             if ($preservedCount > 0) {
                 $content .= '<div class="warning"><strong>'.resolveLangKey('preserved_list_title', $langForGlobal).'</strong><ul class="file-list">';
