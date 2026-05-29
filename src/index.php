@@ -3,6 +3,37 @@
 declare(strict_types=1);
 
 namespace Oak\Engine\Installer {
+    function createDirectoryTree(string $directory, int $mode = 0o755): bool
+    {
+        if (is_dir($directory)) {
+            return true;
+        }
+
+        $directoriesToCreate = [];
+        $currentDirectory = $directory;
+        while (!is_dir($currentDirectory)) {
+            $directoriesToCreate[] = $currentDirectory;
+            $parentDirectory = dirname($currentDirectory);
+            if ($parentDirectory === $currentDirectory) {
+                break;
+            }
+
+            $currentDirectory = $parentDirectory;
+        }
+
+        foreach (array_reverse($directoriesToCreate) as $directoryToCreate) {
+            if (!mkdir($directoryToCreate, $mode) && !is_dir($directoryToCreate)) {
+                return false;
+            }
+
+            if (!chmod($directoryToCreate, $mode)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     final class InstallUuidManager
     {
         public function ensureEnvLocalInstallUuid(string $envPath, bool $replace = false): string
@@ -23,7 +54,7 @@ namespace Oak\Engine\Installer {
             }
 
             $directory = dirname($envPath);
-            if (!is_dir($directory) && !mkdir($directory, 0o755, true) && !is_dir($directory)) {
+            if (!createDirectoryTree($directory, 0o755)) {
                 throw new \RuntimeException(sprintf('Unable to create directory "%s".', $directory));
             }
 
@@ -358,7 +389,7 @@ namespace Oak\Engine\Installer {
             array $whitelistFiles,
         ): array {
             $tempDirectory = sys_get_temp_dir().'/project_package_'.bin2hex(random_bytes(8));
-            if (!mkdir($tempDirectory, 0o755, true) && !is_dir($tempDirectory)) {
+            if (!createDirectoryTree($tempDirectory, 0o755)) {
                 throw new \RuntimeException(sprintf('Unable to create temp directory "%s".', $tempDirectory));
             }
 
@@ -375,7 +406,7 @@ namespace Oak\Engine\Installer {
                     throw new \RuntimeException(sprintf('Unable to write temp archive "%s".', $tarFile));
                 }
 
-                if (!mkdir($extractionDirectory, 0o755, true) && !is_dir($extractionDirectory)) {
+                if (!createDirectoryTree($extractionDirectory, 0o755)) {
                     throw new \RuntimeException(sprintf('Unable to create extraction directory "%s".', $extractionDirectory));
                 }
 
@@ -507,7 +538,9 @@ namespace Oak\Engine\Installer {
 
                     $targetPath = rtrim($targetDir, '/').'/'.$relativePath;
                     if (!is_dir($targetPath)) {
-                        mkdir($targetPath, 0o755, true);
+                        if (!createDirectoryTree($targetPath, 0o755)) {
+                            throw new \RuntimeException(sprintf('Unable to create directory "%s".', $targetPath));
+                        }
                     }
 
                     continue;
@@ -535,7 +568,9 @@ namespace Oak\Engine\Installer {
                 $targetPath = rtrim($targetDir, '/').'/'.$relativePath;
                 $targetDirectoryPath = dirname($targetPath);
                 if (!is_dir($targetDirectoryPath)) {
-                    mkdir($targetDirectoryPath, 0o755, true);
+                    if (!createDirectoryTree($targetDirectoryPath, 0o755)) {
+                        throw new \RuntimeException(sprintf('Unable to create directory "%s".', $targetDirectoryPath));
+                    }
                 }
 
                 if (!copy($absolutePath, $targetPath)) {
@@ -1117,7 +1152,7 @@ namespace {
             throw new RuntimeException('GitHub cache directory cannot be created: '.$directory);
         }
 
-        if (!is_dir($directory) && !mkdir($directory, 0o755, true) && !is_dir($directory)) {
+        if (!\Oak\Engine\Installer\createDirectoryTree($directory, 0o755)) {
             throw new RuntimeException('GitHub cache directory cannot be created: '.$directory);
         }
 
@@ -1237,7 +1272,9 @@ namespace {
             }
 
             $tempExtractDir = sys_get_temp_dir().'/updater_self_'.uniqid();
-            mkdir($tempExtractDir, 0755, true);
+            if (!\Oak\Engine\Installer\createDirectoryTree($tempExtractDir, 0o755)) {
+                throw new RuntimeException('Temp update directory cannot be created: '.$tempExtractDir);
+            }
             $zip->extractTo($tempExtractDir);
             $zip->close();
 
@@ -1289,7 +1326,9 @@ namespace {
                 $targetPath = rtrim($destinationDir, '/').'/'.$relativePath;
                 $targetDir = dirname($targetPath);
                 if (!is_dir($targetDir)) {
-                    mkdir($targetDir, 0755, true);
+                    if (!\Oak\Engine\Installer\createDirectoryTree($targetDir, 0o755)) {
+                        throw new RuntimeException('Target directory cannot be created: '.$targetDir);
+                    }
                 }
 
                 if (!copy((string) $item->getPathname(), $targetPath)) {
@@ -1754,7 +1793,9 @@ HTML;
                 throw new RuntimeException('Failed to open ZIP');
             }
             $tempExtractDir = sys_get_temp_dir().'/gitinstall_'.uniqid();
-            mkdir($tempExtractDir, 0755, true);
+            if (!\Oak\Engine\Installer\createDirectoryTree($tempExtractDir, 0o755)) {
+                throw new RuntimeException('Temp extract directory cannot be created: '.$tempExtractDir);
+            }
             $zip->extractTo($tempExtractDir);
             $zip->close();
             $dirs = glob($tempExtractDir.'/*', GLOB_ONLYDIR);
@@ -1844,7 +1885,9 @@ HTML;
                     }
                     $targetPath = rtrim($targetDir, '/').'/'.$relativePath;
                     if (!is_dir($targetPath)) {
-                        mkdir($targetPath, 0755, true);
+                        if (!\Oak\Engine\Installer\createDirectoryTree($targetPath, 0o755)) {
+                            throw new RuntimeException('Target directory cannot be created: '.$targetPath);
+                        }
                     }
                     continue;
                 }
@@ -1874,7 +1917,9 @@ HTML;
                 $targetPath = rtrim($targetDir, '/').'/'.$relativePath;
                 $targetDirPath = dirname($targetPath);
                 if (!is_dir($targetDirPath)) {
-                    mkdir($targetDirPath, 0755, true);
+                    if (!\Oak\Engine\Installer\createDirectoryTree($targetDirPath, 0o755)) {
+                        throw new RuntimeException('Target directory cannot be created: '.$targetDirPath);
+                    }
                 }
                 copy($item->getPathname(), $targetPath);
                 $extractedFiles[] = $relativePath;
@@ -2007,7 +2052,9 @@ HTML;
             $defaultContent = "APP_ENV=prod\n";
             $dir = dirname($envPath);
             if (!is_dir($dir)) {
-                mkdir($dir, 0755, true);
+                if (!\Oak\Engine\Installer\createDirectoryTree($dir, 0o755)) {
+                    return false;
+                }
             }
             if (false === file_put_contents($envPath, $defaultContent)) {
                 return false;
@@ -2095,7 +2142,7 @@ HTML;
         $updated = $manager->upsertInstallUuid($content, true);
         $replacedContent = str_replace('INSTALL_UUID='.$updated['uuid'], 'INSTALL_UUID='.$normalizedUuid, $updated['content']);
         $directory = dirname($envPath);
-        if (!is_dir($directory) && !mkdir($directory, 0o755, true) && !is_dir($directory)) {
+        if (!\Oak\Engine\Installer\createDirectoryTree($directory, 0o755)) {
             return false;
         }
 
@@ -2204,7 +2251,7 @@ HTML;
         }
 
         $directory = dirname($envPath);
-        if (!is_dir($directory) && !mkdir($directory, 0o755, true) && !is_dir($directory)) {
+        if (!\Oak\Engine\Installer\createDirectoryTree($directory, 0o755)) {
             return ['written' => false, 'written_lines' => [], 'written_keys' => [], 'skipped_existing_lines' => [], 'skipped_existing_keys' => []];
         }
 
@@ -2240,39 +2287,81 @@ HTML;
     function resolveProjectEnvComposerMetadataSources(string $targetDir): array
     {
         $scanDir = rtrim($targetDir, '/');
-        if (!is_dir($scanDir)) {
-            return [];
-        }
-
-        $metadataSources = [];
-        $patterns = [
-            ['pattern' => $scanDir.'/runner/*/core/*/composer.json', 'package_type' => 'runner'],
-            ['pattern' => $scanDir.'/runner/*/plugin/*/composer.json', 'package_type' => 'plugin'],
+        $rootComposerPath = $scanDir.'/composer.json';
+        /** @var array<string, list<string>> $patternsByPackageType */
+        $patternsByPackageType = [
+            'runner' => [
+                $scanDir.'/runner/*/core/*/*/composer.json',
+                $scanDir.'/runner/core/*/*/composer.json',
+            ],
+            'plugin' => [
+                $scanDir.'/runner/*/plugin/*/*/composer.json',
+                $scanDir.'/runner/plugin/*/*/composer.json',
+            ],
         ];
 
-        foreach ($patterns as $config) {
-            $matchedPaths = glob($config['pattern']);
-            if (false === $matchedPaths) {
-                continue;
-            }
+        /** @var list<array{path: string, package_type: string, metadata: array<string, mixed>}> $runnerMetadataSources */
+        $runnerMetadataSources = [];
+        /** @var list<array{path: string, package_type: string, metadata: array<string, mixed>}> $pluginMetadataSources */
+        $pluginMetadataSources = [];
 
-            sort($matchedPaths);
-
-            foreach ($matchedPaths as $matchedPath) {
-                $metadata = readComposerJsonMetadata($matchedPath);
-                if ([] === extractPackageEnvConfig($metadata, $config['package_type'])) {
-                    continue;
-                }
-
-                $metadataSources[] = [
-                    'path' => substr(str_replace('\\', '/', $matchedPath), strlen(str_replace('\\', '/', $scanDir)) + 1),
-                    'package_type' => $config['package_type'],
-                    'metadata' => $metadata,
+        if (!is_dir($scanDir.'/runner') && is_file($rootComposerPath)) {
+            $rootMetadata = readComposerJsonMetadata($rootComposerPath);
+            if ([] !== extractPackageEnvConfig($rootMetadata, 'runner')) {
+                $runnerMetadataSources['composer.json'] = [
+                    'path' => 'composer.json',
+                    'package_type' => 'runner',
+                    'metadata' => $rootMetadata,
                 ];
             }
         }
 
-        return $metadataSources;
+        foreach ($patternsByPackageType as $packageType => $patterns) {
+            foreach ($patterns as $pattern) {
+                $matchedPaths = glob($pattern);
+                if (false === $matchedPaths) {
+                    continue;
+                }
+
+                foreach ($matchedPaths as $matchedPath) {
+                    $normalizedPath = str_replace('\\', '/', $matchedPath);
+                    $relativePath = substr($normalizedPath, strlen(str_replace('\\', '/', $scanDir)) + 1);
+                    if (!is_string($relativePath) || '' === $relativePath) {
+                        continue;
+                    }
+
+                    $metadata = readComposerJsonMetadata($normalizedPath);
+                    if ([] === extractPackageEnvConfig($metadata, $packageType)) {
+                        continue;
+                    }
+
+                    $metadataSource = [
+                        'path' => $relativePath,
+                        'package_type' => $packageType,
+                        'metadata' => $metadata,
+                    ];
+
+                    if ('runner' === $packageType) {
+                        $runnerMetadataSources[$relativePath] = $metadataSource;
+
+                        continue;
+                    }
+
+                    $pluginMetadataSources[$relativePath] = $metadataSource;
+                }
+            }
+        }
+
+        usort(
+            $runnerMetadataSources,
+            static fn (array $left, array $right): int => strcmp($left['path'], $right['path']),
+        );
+        usort(
+            $pluginMetadataSources,
+            static fn (array $left, array $right): int => strcmp($left['path'], $right['path']),
+        );
+
+        return array_merge($runnerMetadataSources, $pluginMetadataSources);
     }
 
     /**
@@ -2894,7 +2983,7 @@ HTML;
         if (false === $targetDir) {
             $absoluteTarget = __DIR__.'/'.$targetDirRelative;
             if (!is_dir($absoluteTarget)) {
-                if (!mkdir($absoluteTarget, 0755, true)) {
+                if (!\Oak\Engine\Installer\createDirectoryTree($absoluteTarget, 0o755)) {
                     throw new RuntimeException('Target directory cannot be created: '.$absoluteTarget);
                 }
             }

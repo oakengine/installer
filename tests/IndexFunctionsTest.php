@@ -483,6 +483,24 @@ final class IndexFunctionsTest extends TestCase
         $this->assertSame('copied', file_get_contents($targetDir.'/app/file.txt'));
     }
 
+    public function testExtractZipCreatesDirectoriesWithExpectedPermissions(): void
+    {
+        $targetDir = $this->createTempDirectory();
+
+        extractZip(
+            $this->createZipArchive([
+                'app/file.txt' => 'copied',
+            ]),
+            $targetDir,
+            [],
+            [],
+            [],
+            []
+        );
+
+        $this->assertSame(0o755, fileperms($targetDir.'/app') & 0o777);
+    }
+
     public function testRecursiveDeleteRemovesDirectoryTree(): void
     {
         $directory = $this->createTempDirectory();
@@ -560,6 +578,17 @@ ENV;
 
         $this->assertTrue(updateInstallUuidInEnvLocal($manager, $envPath, $replacement));
         $this->assertStringContainsString('INSTALL_UUID='.$replacement, (string) file_get_contents($envPath));
+    }
+
+    public function testEnsureEnvLocalInstallUuidCreatesDirectoryWithExpectedPermissions(): void
+    {
+        $manager = new InstallUuidManager();
+        $targetDir = $this->createTempDirectory().'/nested/config';
+        $envPath = $targetDir.'/.env.local';
+
+        $manager->ensureEnvLocalInstallUuid($envPath);
+
+        $this->assertSame(0o755, fileperms($targetDir) & 0o777);
         $this->assertFalse(updateInstallUuidInEnvLocal($manager, $envPath, 'invalid-uuid'));
     }
 
@@ -683,34 +712,24 @@ ENV;
         $this->assertFalse(syncPackageEnvToEnvLocal($envPath, ['extra' => []], 'runner'));
     }
 
-    public function testResolveProjectEnvComposerMetadataSourcesFindsRunnerCoreAndPluginsInCoreThenPluginOrder(): void
+    public function testResolveProjectEnvComposerMetadataSourcesFindsProjectComposerFilesInCoreThenPluginOrder(): void
     {
         $targetDir = $this->createTempDirectory();
-        mkdir($targetDir.'/runner/zeta/core/site', 0o755, true);
-        mkdir($targetDir.'/runner/acme/core/admin', 0o755, true);
-        mkdir($targetDir.'/runner/zeta/plugin/shop', 0o755, true);
-        mkdir($targetDir.'/runner/acme/plugin/blog', 0o755, true);
-        mkdir($targetDir.'/runner/acme/plugin/empty', 0o755, true);
+        mkdir($targetDir.'/runner/example/core/example/index-bundle', 0o755, true);
+        mkdir($targetDir.'/runner/example/plugin/example/teaser-widget', 0o755, true);
+        mkdir($targetDir.'/runner/example/plugin/example/no-env', 0o755, true);
+        mkdir($targetDir.'/runner/example/invalid/example/index-bundle', 0o755, true);
 
-        file_put_contents($targetDir.'/runner/zeta/core/site/composer.json', json_encode([
+        file_put_contents($targetDir.'/runner/example/core/example/index-bundle/composer.json', json_encode([
             'extra' => [
                 'oak-engine-plugin' => [
                     'env' => [
-                        'dir' => 'site',
+                        'dir' => 'example',
                     ],
                 ],
             ],
         ], JSON_THROW_ON_ERROR));
-        file_put_contents($targetDir.'/runner/acme/core/admin/composer.json', json_encode([
-            'extra' => [
-                'oak-engine-plugin' => [
-                    'env' => [
-                        'dir' => 'admin',
-                    ],
-                ],
-            ],
-        ], JSON_THROW_ON_ERROR));
-        file_put_contents($targetDir.'/runner/acme/plugin/blog/composer.json', json_encode([
+        file_put_contents($targetDir.'/runner/example/plugin/example/teaser-widget/composer.json', json_encode([
             'extra' => [
                 'oak-engine-plugin' => [
                     'env' => [
@@ -719,48 +738,35 @@ ENV;
                 ],
             ],
         ], JSON_THROW_ON_ERROR));
-        file_put_contents($targetDir.'/runner/zeta/plugin/shop/composer.json', json_encode([
+        file_put_contents($targetDir.'/runner/example/plugin/example/no-env/composer.json', json_encode([
+            'name' => 'oak/empty-plugin',
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($targetDir.'/runner/example/invalid/example/index-bundle/composer.json', json_encode([
             'extra' => [
                 'oak-engine-plugin' => [
                     'env' => [
-                        'available-languages' => 'en|de',
+                        'dir' => 'ignored',
                     ],
                 ],
             ],
-        ], JSON_THROW_ON_ERROR));
-        file_put_contents($targetDir.'/runner/acme/plugin/empty/composer.json', json_encode([
-            'name' => 'oak/empty-plugin',
         ], JSON_THROW_ON_ERROR));
 
         $this->assertSame([
             [
-                'path' => 'runner/acme/core/admin/composer.json',
+                'path' => 'runner/example/core/example/index-bundle/composer.json',
                 'package_type' => 'runner',
                 'metadata' => [
                     'extra' => [
                         'oak-engine-plugin' => [
                             'env' => [
-                                'dir' => 'admin',
+                                'dir' => 'example',
                             ],
                         ],
                     ],
                 ],
             ],
             [
-                'path' => 'runner/zeta/core/site/composer.json',
-                'package_type' => 'runner',
-                'metadata' => [
-                    'extra' => [
-                        'oak-engine-plugin' => [
-                            'env' => [
-                                'dir' => 'site',
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-            [
-                'path' => 'runner/acme/plugin/blog/composer.json',
+                'path' => 'runner/example/plugin/example/teaser-widget/composer.json',
                 'package_type' => 'plugin',
                 'metadata' => [
                     'extra' => [
@@ -772,14 +778,57 @@ ENV;
                     ],
                 ],
             ],
+        ], resolveProjectEnvComposerMetadataSources($targetDir));
+    }
+
+    public function testResolveProjectEnvComposerMetadataSourcesFindsInstalledProjectLayout(): void
+    {
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/runner/plugin/example/teaser-widget', 0o755, true);
+
+        file_put_contents($targetDir.'/composer.json', json_encode([
+            'extra' => [
+                'oak-engine-runner' => [
+                    'env' => [
+                        'dir' => 'example',
+                        'core-bundle-class' => 'Oak\\Core\\IndexBundle\\IndexBundle',
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($targetDir.'/runner/plugin/example/teaser-widget/composer.json', json_encode([
+            'extra' => [
+                'oak-engine-plugin' => [
+                    'env' => [
+                        'default-language' => 'en',
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame([
             [
-                'path' => 'runner/zeta/plugin/shop/composer.json',
+                'path' => 'composer.json',
+                'package_type' => 'runner',
+                'metadata' => [
+                    'extra' => [
+                        'oak-engine-runner' => [
+                            'env' => [
+                                'dir' => 'example',
+                                'core-bundle-class' => 'Oak\\Core\\IndexBundle\\IndexBundle',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'path' => 'runner/plugin/example/teaser-widget/composer.json',
                 'package_type' => 'plugin',
                 'metadata' => [
                     'extra' => [
                         'oak-engine-plugin' => [
                             'env' => [
-                                'available-languages' => 'en|de',
+                                'default-language' => 'en',
                             ],
                         ],
                     ],
