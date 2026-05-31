@@ -222,6 +222,34 @@ final class IndexFunctionsTest extends TestCase
         $this->assertSame('<li><em>None</em></li>', renderPackageListHtml([], 'runner', ['no_tags_found' => 'None']));
     }
 
+    public function testFormatVersionBadge(): void
+    {
+        $this->assertSame('<code>1.0.0</code> <span class="status-badge">stable</span>', formatVersionBadge('1.0.0 (stable)'));
+        $this->assertSame('<code>unknown</code>', formatVersionBadge('unknown'));
+        $this->assertSame('<code>2.3.4</code>', formatVersionBadge('  2.3.4  '));
+    }
+
+    public function testRenderStatusOverview(): void
+    {
+        $html = renderStatusOverview([
+            ['icon' => 'installer', 'label' => 'Installer Version', 'value' => '<code>1.0.0</code>'],
+            ['icon' => 'unknown-icon', 'label' => 'Custom', 'value' => '<em>none</em>'],
+        ]);
+
+        $this->assertStringStartsWith('<section class="status-overview">', $html);
+        $this->assertStringContainsString('class="status-item"', $html);
+        $this->assertStringContainsString('<span class="status-label">Installer Version</span>', $html);
+        $this->assertStringContainsString('<div class="status-value"><code>1.0.0</code></div>', $html);
+        $this->assertStringContainsString('<svg viewBox="0 0 24 24"', $html);
+        $this->assertStringContainsString('<span class="status-icon" aria-hidden="true"></span>', $html);
+        $this->assertStringNotContainsString('<select', $html);
+    }
+
+    public function testFormatVersionBadgeEscapesValue(): void
+    {
+        $this->assertSame('<code>1.0.0</code> <span class="status-badge">a&lt;b</span>', formatVersionBadge('1.0.0 (a<b)'));
+    }
+
     public function testRenderDropdownPreselectsValueAndReplacesSelect(): void
     {
         $html = renderDropdown('app_env', [

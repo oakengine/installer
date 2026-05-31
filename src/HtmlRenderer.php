@@ -46,6 +46,43 @@ function renderDropdown(string $name, array $options, string $selectedValue = ''
 }
 
 /**
+ * Renders a modern status overview as a responsive grid of icon-prefixed cards.
+ * Each item value is treated as trusted HTML; callers are responsible for escaping.
+ *
+ * @param list<array{icon: string, label: string, value: string}> $items
+ */
+function renderStatusOverview(array $items): string
+{
+    $paths = [
+        'installer' => '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12l8.73-5.04"/><path d="M12 22V12"/>',
+        'runner' => '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
+        'plugin' => '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+        'data' => '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
+        'endpoint' => '<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01"/><path d="M6 18h.01"/>',
+        'folder' => '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+        'shield' => '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+    ];
+
+    $icons = [];
+    foreach ($paths as $iconKey => $iconPath) {
+        $icons[$iconKey] = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'.$iconPath.'</svg>';
+    }
+
+    $rows = '';
+    foreach ($items as $item) {
+        $iconSvg = $icons[$item['icon']] ?? '';
+        $rows .= '<div class="status-item">'
+            .'<span class="status-icon" aria-hidden="true">'.$iconSvg.'</span>'
+            .'<div class="status-body">'
+            .'<span class="status-label">'.htmlspecialchars($item['label']).'</span>'
+            .'<div class="status-value">'.$item['value'].'</div>'
+            .'</div></div>';
+    }
+
+    return '<section class="status-overview">'.$rows.'</section>';
+}
+
+/**
  * @param list<array{
  *     package_type: string,
  *     package_id: string,
@@ -130,10 +167,10 @@ function renderInstalledPackageListHtml(array $packages, array $lang): string
             $metadata .= sprintf(' (%s)', $package['channel']);
         }
 
-        $parts[] = '<code>'.htmlspecialchars($package['name']).'</code> <span class="commit-sha">'.htmlspecialchars($metadata).'</span>';
+        $parts[] = '<span class="status-chip">'.htmlspecialchars($package['name']).' <span class="commit-sha">'.htmlspecialchars($metadata).'</span></span>';
     }
 
-    return implode(', ', $parts);
+    return '<div class="status-chips">'.implode('', $parts).'</div>';
 }
 
 /**
@@ -680,6 +717,81 @@ HTML;
         border-radius: 6px;
         font-size: 0.85em;
     }
+    .status-overview {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+    .status-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 13px;
+        padding: 14px 16px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    }
+    .status-item:hover {
+        border-color: var(--border-strong);
+        box-shadow: var(--shadow-sm);
+        transform: translateY(-1px);
+    }
+    .status-icon {
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+        color: var(--brand-strong);
+    }
+    .status-icon svg { width: 19px; height: 19px; display: block; }
+    .status-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .status-label {
+        font-size: 0.71rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-soft);
+    }
+    .status-value {
+        font-size: 0.92rem;
+        color: var(--text);
+        line-height: 1.5;
+        word-break: break-word;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 7px;
+    }
+    .status-value em { color: var(--text-soft); font-style: normal; }
+    .status-value a { color: var(--brand-strong); text-decoration: none; font-size: 0.8em; font-weight: 600; }
+    .status-value a:hover { text-decoration: underline; }
+    .status-badge {
+        font-size: 0.68rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 2px 9px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+        color: var(--accent-strong);
+        border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    }
+    .status-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .status-chip {
+        font-size: 0.78rem;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: var(--surface-muted);
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+    }
+    .status-chip .commit-sha { color: var(--text-soft); margin-left: 4px; }
     .error, .success, .warning {
         padding: 14px 16px 14px 18px;
         border-radius: var(--radius);

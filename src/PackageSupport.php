@@ -44,6 +44,16 @@ function formatPackageSize(int $bytes): string
     return sprintf('%0.1f MB', $bytes / 1024 / 1024);
 }
 
+function formatVersionBadge(string $version): string
+{
+    $version = trim($version);
+    if (1 === preg_match('/^(.*?)\s*\(([^)]+)\)\s*$/', $version, $matches)) {
+        return '<code>'.htmlspecialchars(trim($matches[1])).'</code> <span class="status-badge">'.htmlspecialchars(trim($matches[2])).'</span>';
+    }
+
+    return '<code>'.htmlspecialchars($version).'</code>';
+}
+
 function resolveInstalledProjectVersion(string $targetDir): string
 {
     $composerPath = rtrim($targetDir, '/').'/composer.json';

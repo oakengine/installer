@@ -584,18 +584,58 @@ final class InstallerApplication
                 exit;
             }
 
-            $content = '<div class="repo-info"><strong>'.resolveLangKey('updater_version', $langForGlobal).':</strong> <code>'.htmlspecialchars($currentInstallerVersion).'</code> <a href="?manage=installer" style="font-size:0.8em;">['.resolveLangKey('manage', $langForGlobal).']</a><br><strong>'.resolveLangKey('runner_version', $langForGlobal).':</strong> <code>'.htmlspecialchars($currentProjectVersion).'</code><br><strong>'.resolveLangKey('installed_plugins', $langForGlobal).':</strong>'.$installedPluginHtml.'<br><strong>'.resolveLangKey('installed_data', $langForGlobal).':</strong>'.$installedDataHtml.'<br><strong>'.resolveLangKey('repository', $langForGlobal).':</strong> <code>'.htmlspecialchars($projectApiUrl).'</code><br><strong>'.resolveLangKey('target_directory', $langForGlobal).':</strong> <code>'.htmlspecialchars($targetDirStr).'</code>';
+            $statusItems = [
+                [
+                    'icon' => 'installer',
+                    'label' => resolveLangKey('updater_version', $langForGlobal),
+                    'value' => formatVersionBadge($currentInstallerVersion).' <a href="?manage=installer">['.resolveLangKey('manage', $langForGlobal).']</a>',
+                ],
+                [
+                    'icon' => 'runner',
+                    'label' => resolveLangKey('runner_version', $langForGlobal),
+                    'value' => formatVersionBadge($currentProjectVersion),
+                ],
+                [
+                    'icon' => 'plugin',
+                    'label' => resolveLangKey('installed_plugins', $langForGlobal),
+                    'value' => $installedPluginHtml,
+                ],
+                [
+                    'icon' => 'data',
+                    'label' => resolveLangKey('installed_data', $langForGlobal),
+                    'value' => $installedDataHtml,
+                ],
+                [
+                    'icon' => 'endpoint',
+                    'label' => resolveLangKey('repository', $langForGlobal),
+                    'value' => '<code>'.htmlspecialchars($projectApiUrl).'</code>',
+                ],
+                [
+                    'icon' => 'folder',
+                    'label' => resolveLangKey('target_directory', $langForGlobal),
+                    'value' => '<code>'.htmlspecialchars($targetDirStr).'</code>',
+                ],
+            ];
+
             if (!empty($whitelistFolders) || !empty($whitelistFiles)) {
-                $content .= '<br><strong>'.resolveLangKey('whitelist_active', $langForGlobal).':</strong> ';
                 $wlItems = array_merge($whitelistFolders, $whitelistFiles);
                 /** @var array<string> $wlItemsString */
                 $wlItemsString = array_map(fn ($item) => (string) $item, $wlItems);
-                $content .= htmlspecialchars(implode(', ', array_slice($wlItemsString, 0, 5)));
-                if (count($wlItems) > 5) {
-                    $content .= ' ...';
+                $wlChips = '';
+                foreach (array_slice($wlItemsString, 0, 8) as $wlItem) {
+                    $wlChips .= '<span class="status-chip">'.htmlspecialchars($wlItem).'</span>';
                 }
+                if (count($wlItems) > 8) {
+                    $wlChips .= '<span class="status-chip">&hellip;</span>';
+                }
+                $statusItems[] = [
+                    'icon' => 'shield',
+                    'label' => resolveLangKey('whitelist_active', $langForGlobal),
+                    'value' => '<div class="status-chips">'.$wlChips.'</div>',
+                ];
             }
-            $content .= '</div>';
+
+            $content = renderStatusOverview($statusItems);
 
             $text_confirm_clear_cache = resolveLangKey('confirm_clear_cache', $langForGlobal);
             $content .= '<form method="post" style="margin-bottom:20px"><button type="submit" name="clear_cache" class="btn btn-secondary" onclick="return confirm(\''.htmlspecialchars($text_confirm_clear_cache).'\')">'.resolveLangKey('clear_cache', $langForGlobal).'</button></form>';
