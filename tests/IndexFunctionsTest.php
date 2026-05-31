@@ -1194,7 +1194,7 @@ ENV;
         $this->assertStringContainsString('HOME', $html);
         $this->assertStringContainsString('class="dashboard-nav"', $html);
         $this->assertStringContainsString('dashboard-btn active" href="?"', $html);
-        $this->assertStringContainsString('href="?manage=installer"', $html);
+        $this->assertStringContainsString('href="?view=installer"', $html);
         $this->assertStringNotContainsString('id="btn-home"', $html);
         $this->assertStringNotContainsString('showDashboardSection', $html);
     }
@@ -1250,7 +1250,7 @@ ENV;
         $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
         $GLOBALS['availableLangs'] = ['en', 'de'];
         $_SESSION['lang'] = 'en';
-        $_GET['manage'] = 'installer';
+        $_GET['view'] = 'installer';
         $_GET['itab'] = 'tags';
 
         $targetDir = $this->createTempDirectory();
@@ -1259,10 +1259,10 @@ ENV;
 
         $html = renderPage('Installer', '<p>x</p>', null, $envPath, false, 'installer');
 
-        $this->assertStringContainsString('<input type="hidden" name="manage" value="installer">', $html);
+        $this->assertStringContainsString('<input type="hidden" name="view" value="installer">', $html);
         $this->assertStringContainsString('<input type="hidden" name="itab" value="tags">', $html);
 
-        unset($_GET['manage'], $_GET['itab']);
+        unset($_GET['view'], $_GET['itab']);
     }
 
     public function testResolveDashboardViewWhitelistsValues(): void
@@ -1274,6 +1274,7 @@ ENV;
         $this->assertSame('environment', resolveDashboardView('environment'));
         $this->assertSame('databases', resolveDashboardView('databases'));
         $this->assertSame('install-uuid', resolveDashboardView('install-uuid'));
+        $this->assertSame('installer', resolveDashboardView('installer'));
     }
 
     public function testResolveInstallerTabDefaultsToBranches(): void

@@ -395,7 +395,7 @@ final class InstallerApplication
                 }
 
                 $updaterSourcePath = 'src';
-                if (isset($_GET['manage']) && 'installer' === $_GET['manage']) {
+                if ('installer' === ($_GET['view'] ?? null)) {
                     $updaterSourcePath = 'src';
                 } elseif (isset($config['updater_source_path']) && is_scalar($config['updater_source_path'])) {
                     $updaterSourcePath = (string) $config['updater_source_path'];
@@ -536,7 +536,7 @@ final class InstallerApplication
             $installedDataHtml = renderInstalledPackageListHtml($installedDataPackages, $langForGlobal);
 
             $envPath = rtrim($targetDirStr, '/').'/.env.local';
-            if (isset($_GET['manage']) && 'installer' === $_GET['manage']) {
+            if ('installer' === ($_GET['view'] ?? null)) {
                 $installerRefs = getCachedGitHubRepositoryRefs($client, $installerRepo, $githubCacheDir);
                 $instTags = $installerRefs['tags'];
                 $instBranches = $installerRefs['branches'];
@@ -573,8 +573,8 @@ final class InstallerApplication
                 $branchesActiveClass = ('tags' === $itab) ? '' : ' active';
                 $tagsActiveClass = ('tags' === $itab) ? ' active' : '';
                 $content .= '<div class="tabs">'
-                    .'<a class="tab'.$branchesActiveClass.'" href="?manage=installer&itab=branches">'.resolveLangKey('branches', $langForGlobal).' ('.count($instBranches).')</a>'
-                    .'<a class="tab'.$tagsActiveClass.'" href="?manage=installer&itab=tags">'.resolveLangKey('tags', $langForGlobal).' ('.count($instTags).')</a>'
+                    .'<a class="tab'.$branchesActiveClass.'" href="?view=installer&itab=branches">'.resolveLangKey('branches', $langForGlobal).' ('.count($instBranches).')</a>'
+                    .'<a class="tab'.$tagsActiveClass.'" href="?view=installer&itab=tags">'.resolveLangKey('tags', $langForGlobal).' ('.count($instTags).')</a>'
                     .'</div>';
                 if ('tags' === $itab) {
                     $content .= '<ul class="tag-list">'.$instTagHtml.'</ul>';
@@ -590,7 +590,7 @@ final class InstallerApplication
                 [
                     'icon' => 'installer',
                     'label' => resolveLangKey('updater_version', $langForGlobal),
-                    'value' => formatVersionBadge($currentInstallerVersion).' <a href="?manage=installer">['.resolveLangKey('manage', $langForGlobal).']</a>',
+                    'value' => formatVersionBadge($currentInstallerVersion).' <a href="?view=installer">['.resolveLangKey('manage', $langForGlobal).']</a>',
                 ],
                 [
                     'icon' => 'runner',

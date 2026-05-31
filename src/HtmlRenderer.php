@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 function resolveDashboardView(mixed $raw): string
 {
-    $allowed = ['home', 'updates', 'environment', 'databases', 'install-uuid'];
+    $allowed = ['home', 'updates', 'environment', 'databases', 'install-uuid', 'installer'];
     $value = is_string($raw) ? $raw : '';
 
     return in_array($value, $allowed, true) ? $value : 'home';
@@ -341,12 +341,9 @@ function renderPage(string $title, string $content, ?string $error = null, ?stri
 
     $langStateInputs = '';
     $rawView = (isset($_GET['view']) && is_string($_GET['view'])) ? $_GET['view'] : '';
-    if (in_array($rawView, ['updates', 'environment', 'databases', 'install-uuid'], true)) {
+    if (in_array($rawView, ['updates', 'environment', 'databases', 'install-uuid', 'installer'], true)) {
         $langStateInputs .= '<input type="hidden" name="view" value="'.htmlspecialchars($rawView).'">';
-    }
-    if (isset($_GET['manage']) && 'installer' === $_GET['manage']) {
-        $langStateInputs .= '<input type="hidden" name="manage" value="installer">';
-        if (isset($_GET['itab']) && 'tags' === $_GET['itab']) {
+        if ('installer' === $rawView && isset($_GET['itab']) && 'tags' === $_GET['itab']) {
             $langStateInputs .= '<input type="hidden" name="itab" value="tags">';
         }
     }
@@ -534,7 +531,7 @@ HTML;
             ['view' => 'environment', 'href' => '?view=environment', 'label' => $text_dashboard_environment],
             ['view' => 'databases', 'href' => '?view=databases', 'label' => $text_dashboard_databases],
             ['view' => 'install-uuid', 'href' => '?view=install-uuid', 'label' => $text_dashboard_install_uuid],
-            ['view' => 'installer', 'href' => '?manage=installer', 'label' => $text_dashboard_installer],
+            ['view' => 'installer', 'href' => '?view=installer', 'label' => $text_dashboard_installer],
         ];
         $navLinks = '';
         foreach ($navItems as $navItem) {
