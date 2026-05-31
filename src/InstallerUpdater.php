@@ -72,7 +72,15 @@ function isAllowedUpdaterFile(string $relativePath): bool
 {
     $relativePath = normalizeRelativePath($relativePath);
 
-    if ('index.php' === $relativePath || '.htaccess' === $relativePath || 'config.example.php' === $relativePath) {
+    if ('.htaccess' === $relativePath) {
+        return true;
+    }
+
+    if ('config.php' === $relativePath) {
+        return false;
+    }
+
+    if (1 === preg_match('/^[^\/]+\.php$/', $relativePath)) {
         return true;
     }
 

@@ -262,6 +262,9 @@ final class IndexFunctionsTest extends TestCase
         $this->assertTrue(isAllowedUpdaterFile('config.example.php'));
         $this->assertTrue(isAllowedUpdaterFile('lang/de.php'));
         $this->assertTrue(isAllowedUpdaterFile('lang/en.php'));
+        $this->assertTrue(isAllowedUpdaterFile('GitHubClient.php'));
+        $this->assertTrue(isAllowedUpdaterFile('HtmlRenderer.php'));
+        $this->assertTrue(isAllowedUpdaterFile('EnvLocalManager.php'));
 
         $this->assertFalse(isAllowedUpdaterFile('config.php'));
         $this->assertFalse(isAllowedUpdaterFile('src/index.php'));
