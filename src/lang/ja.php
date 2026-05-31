@@ -78,6 +78,7 @@ return [
     'files_updated' => '<strong>:count 個のファイル</strong> が更新されました。',
     'updated_files' => '更新されたファイル',
     'dashboard_install_uuid' => '🆔 Install UUID',
+    'dashboard_installer' => '🛠️ インストーラー',
     'install_uuid' => 'Install UUID',
     'install_uuid_help' => 'This UUID is sent with every package API request and can be changed here.',
     'install_uuid_saved' => '✅ Install UUID saved!',

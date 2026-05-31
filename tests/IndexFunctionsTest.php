@@ -1170,16 +1170,16 @@ ENV;
         file_put_contents($targetDir.'/migrations/Version1.php', '<?php');
         $this->createConsoleScript($targetDir, 'New Migrations: 0');
 
-        $html = renderPage('Installer', '<p>Welcome</p>', 'Boom', $envPath, true);
+        $html = renderPage('Installer', '<p>Welcome</p>', 'Boom', $envPath, true, 'install-uuid');
 
-        $this->assertStringContainsString('Welcome', $html);
         $this->assertStringContainsString('Boom', $html);
-        $this->assertStringContainsString('dashboard-install-uuid', $html);
         $this->assertStringContainsString('018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1', $html);
+        $this->assertStringContainsString('dashboard-btn active" href="?view=install-uuid"', $html);
         $this->assertStringContainsString('Logout', $html);
+        $this->assertStringNotContainsString('showDashboardSection', $html);
     }
 
-    public function testRenderPageShowsHomeDashboardSection(): void
+    public function testRenderPageHighlightsHomeViewAndRendersContent(): void
     {
         $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
         $GLOBALS['availableLangs'] = ['en', 'de'];
@@ -1189,14 +1189,99 @@ ENV;
         $envPath = $targetDir.'/.env.local';
         file_put_contents($envPath, "APP_ENV=prod\n");
 
-        $html = renderPage('Installer', '<p>Packages</p>', null, $envPath, false, '<section class="status-overview">HOME</section>');
+        $html = renderPage('Installer', '<section class="status-overview">HOME</section>', null, $envPath, false, 'home');
 
-        $this->assertStringContainsString('id="dashboard-home"', $html);
-        $this->assertStringContainsString('id="btn-home"', $html);
         $this->assertStringContainsString('HOME', $html);
-        $this->assertStringContainsString('<div id="dashboard-updates" style="display:none">', $html);
-        $this->assertStringContainsString('dashboard-btn active" id="btn-home"', $html);
-        $this->assertStringNotContainsString('class="btn btn-secondary btn-small home-btn"', $html);
+        $this->assertStringContainsString('class="dashboard-nav"', $html);
+        $this->assertStringContainsString('dashboard-btn active" href="?"', $html);
+        $this->assertStringContainsString('href="?manage=installer"', $html);
+        $this->assertStringNotContainsString('id="btn-home"', $html);
+        $this->assertStringNotContainsString('showDashboardSection', $html);
+    }
+
+    public function testRenderPageRendersDatabasesViewSection(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $GLOBALS['availableLangs'] = ['en', 'de'];
+        $_SESSION['lang'] = 'en';
+
+        $targetDir = $this->createTempDirectory();
+        $envPath = $targetDir.'/.env.local';
+        file_put_contents($envPath, "APP_ENV=prod\nDATABASE_URL=\"mysql://user:pass@127.0.0.1/db1\" # DB1\n");
+
+        $html = renderPage('Installer', '<p>ignored</p>', null, $envPath, false, 'databases');
+
+        $this->assertStringNotContainsString('<p>ignored</p>', $html);
+        $this->assertStringContainsString('dashboard-btn active" href="?view=databases"', $html);
+    }
+
+    public function testRenderPageWithoutEnvPathHasNoDashboardNav(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $GLOBALS['availableLangs'] = ['en', 'de'];
+        $_SESSION['lang'] = 'en';
+
+        $html = renderPage('Installer', '<p>LoginContent</p>', null, null, false, '');
+
+        $this->assertStringContainsString('LoginContent', $html);
+        $this->assertStringNotContainsString('class="dashboard-nav"', $html);
+    }
+
+    public function testRenderPageLangFormPreservesActiveView(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $GLOBALS['availableLangs'] = ['en', 'de'];
+        $_SESSION['lang'] = 'en';
+        $_GET['view'] = 'environment';
+
+        $targetDir = $this->createTempDirectory();
+        $envPath = $targetDir.'/.env.local';
+        file_put_contents($envPath, "APP_ENV=prod\n");
+
+        $html = renderPage('Installer', '<p>x</p>', null, $envPath, false, 'environment');
+
+        $this->assertStringContainsString('<input type="hidden" name="view" value="environment">', $html);
+
+        unset($_GET['view']);
+    }
+
+    public function testRenderPageLangFormPreservesInstallerTab(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $GLOBALS['availableLangs'] = ['en', 'de'];
+        $_SESSION['lang'] = 'en';
+        $_GET['manage'] = 'installer';
+        $_GET['itab'] = 'tags';
+
+        $targetDir = $this->createTempDirectory();
+        $envPath = $targetDir.'/.env.local';
+        file_put_contents($envPath, "APP_ENV=prod\n");
+
+        $html = renderPage('Installer', '<p>x</p>', null, $envPath, false, 'installer');
+
+        $this->assertStringContainsString('<input type="hidden" name="manage" value="installer">', $html);
+        $this->assertStringContainsString('<input type="hidden" name="itab" value="tags">', $html);
+
+        unset($_GET['manage'], $_GET['itab']);
+    }
+
+    public function testResolveDashboardViewWhitelistsValues(): void
+    {
+        $this->assertSame('home', resolveDashboardView(null));
+        $this->assertSame('home', resolveDashboardView('bogus'));
+        $this->assertSame('home', resolveDashboardView(['array']));
+        $this->assertSame('updates', resolveDashboardView('updates'));
+        $this->assertSame('environment', resolveDashboardView('environment'));
+        $this->assertSame('databases', resolveDashboardView('databases'));
+        $this->assertSame('install-uuid', resolveDashboardView('install-uuid'));
+    }
+
+    public function testResolveInstallerTabDefaultsToBranches(): void
+    {
+        $this->assertSame('branches', resolveInstallerTab(null));
+        $this->assertSame('branches', resolveInstallerTab('branches'));
+        $this->assertSame('branches', resolveInstallerTab('bogus'));
+        $this->assertSame('tags', resolveInstallerTab('tags'));
     }
 
     private function createTempDirectory(): string

@@ -78,6 +78,7 @@ return [
     'files_updated' => '已更新 <strong>:count 个文件</strong>。',
     'updated_files' => '更新的文件',
     'dashboard_install_uuid' => '🆔 Install UUID',
+    'dashboard_installer' => '🛠️ 安装程序',
     'install_uuid' => 'Install UUID',
     'install_uuid_help' => 'This UUID is sent with every package API request and can be changed here.',
     'install_uuid_saved' => '✅ Install UUID saved!',

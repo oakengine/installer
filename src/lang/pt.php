@@ -78,6 +78,7 @@ return [
     'files_updated' => '<strong>:count arquivos</strong> atualizados.',
     'updated_files' => 'Arquivos atualizados',
     'dashboard_install_uuid' => '🆔 Install UUID',
+    'dashboard_installer' => '🛠️ Instalador',
     'install_uuid' => 'Install UUID',
     'install_uuid_help' => 'This UUID is sent with every package API request and can be changed here.',
     'install_uuid_saved' => '✅ Install UUID saved!',

@@ -52,6 +52,7 @@ return [
     'dashboard_environment' => '🌍 Umgebung',
     'dashboard_databases' => '💾 Datenbanken',
     'dashboard_install_uuid' => '🆔 Install UUID',
+    'dashboard_installer' => '🛠️ Installer',
     'env_editor' => '.env.local Editor',
     'env_content' => '.env.local Inhalt',
     'save_env_file' => '💾 Datei speichern',

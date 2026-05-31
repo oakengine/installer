@@ -3,6 +3,27 @@
 declare(strict_types=1);
 
 /**
+ * Resolves the active dashboard view from an untrusted request value.
+ * Falls back to the "home" view for any unknown value.
+ */
+function resolveDashboardView(mixed $raw): string
+{
+    $allowed = ['home', 'updates', 'environment', 'databases', 'install-uuid'];
+    $value = is_string($raw) ? $raw : '';
+
+    return in_array($value, $allowed, true) ? $value : 'home';
+}
+
+/**
+ * Resolves the active installer-management tab from an untrusted request value.
+ * Only "tags" is honoured; everything else defaults to "branches".
+ */
+function resolveInstallerTab(mixed $raw): string
+{
+    return ('tags' === $raw) ? 'tags' : 'branches';
+}
+
+/**
  * Renders a custom, accessible dropdown control that replaces native <select>.
  * The selected value is submitted through a hidden input named $name.
  *
@@ -290,7 +311,7 @@ HTML;
     exit;
 }
 
-function renderPage(string $title, string $content, ?string $error = null, ?string $envPath = null, bool $showLogout = false, ?string $dashboardHome = null): string
+function renderPage(string $title, string $content, ?string $error = null, ?string $envPath = null, bool $showLogout = false, string $activeView = ''): string
 {
     global $lang;
     /** @var array<string, string> $langForPage */
@@ -318,10 +339,23 @@ function renderPage(string $title, string $content, ?string $error = null, ?stri
 
     $langDropdown = renderDropdown('lang', $langDropdownOptions, $sessionLangVal, true, 'dropdown-lang');
 
+    $langStateInputs = '';
+    $rawView = (isset($_GET['view']) && is_string($_GET['view'])) ? $_GET['view'] : '';
+    if (in_array($rawView, ['updates', 'environment', 'databases', 'install-uuid'], true)) {
+        $langStateInputs .= '<input type="hidden" name="view" value="'.htmlspecialchars($rawView).'">';
+    }
+    if (isset($_GET['manage']) && 'installer' === $_GET['manage']) {
+        $langStateInputs .= '<input type="hidden" name="manage" value="installer">';
+        if (isset($_GET['itab']) && 'tags' === $_GET['itab']) {
+            $langStateInputs .= '<input type="hidden" name="itab" value="tags">';
+        }
+    }
+
     $langSwitcherHtml = <<<HTML
 <div class="lang-switcher">
 <form method="get" class="lang-form" id="langForm">
     <label>{$text_language}:</label>
+    {$langStateInputs}
     {$langDropdown}
 </form>
 </div>
@@ -331,9 +365,7 @@ HTML;
     $dbConfigHtml = '';
     $installUuidHtml = '';
     $dashboardNavHtml = '';
-    $dashboardScript = '';
-    $homeSectionHtml = '';
-    $updatesSectionDisplay = 'block';
+    $mainSection = $content;
     if (null !== $envPath) {
         $envConfig = parseEnvLocal($envPath);
         global $lang;
@@ -494,71 +526,30 @@ HTML;
 HTML;
 
         $text_dashboard_home = resolveLangKey('home', $langForTemplate);
+        $text_dashboard_installer = resolveLangKey('dashboard_installer', $langForTemplate);
 
-        $homeNavButton = '';
-        $updatesActiveClass = ' active';
-        if (null !== $dashboardHome) {
-            $homeNavButton = '<button type="button" class="btn btn-secondary dashboard-btn active" id="btn-home" onclick="showDashboardSection(\'home\')">'.$text_dashboard_home.'</button>';
-            $homeSectionHtml = '<div id="dashboard-home" style="display:block">'.$dashboardHome.'</div>';
-            $updatesActiveClass = '';
-            $updatesSectionDisplay = 'none';
+        $navItems = [
+            ['view' => 'home', 'href' => '?', 'label' => $text_dashboard_home],
+            ['view' => 'updates', 'href' => '?view=updates', 'label' => $text_dashboard_updates],
+            ['view' => 'environment', 'href' => '?view=environment', 'label' => $text_dashboard_environment],
+            ['view' => 'databases', 'href' => '?view=databases', 'label' => $text_dashboard_databases],
+            ['view' => 'install-uuid', 'href' => '?view=install-uuid', 'label' => $text_dashboard_install_uuid],
+            ['view' => 'installer', 'href' => '?manage=installer', 'label' => $text_dashboard_installer],
+        ];
+        $navLinks = '';
+        foreach ($navItems as $navItem) {
+            $activeClass = ($navItem['view'] === $activeView) ? ' active' : '';
+            $navLinks .= '<a class="btn btn-secondary dashboard-btn'.$activeClass.'" href="'.$navItem['href'].'">'.$navItem['label'].'</a>';
         }
+        $dashboardNavHtml = '<div class="dashboard-nav">'.$navLinks.'</div>';
 
-        $dashboardNavHtml = <<<HTML
-<div class="dashboard-nav">
-{$homeNavButton}
-<button type="button" class="btn btn-secondary dashboard-btn{$updatesActiveClass}" id="btn-updates" onclick="showDashboardSection('updates')">{$text_dashboard_updates}</button>
-<button type="button" class="btn btn-secondary dashboard-btn" id="btn-environment" onclick="showDashboardSection('environment')">{$text_dashboard_environment}</button>
-<button type="button" class="btn btn-secondary dashboard-btn" id="btn-databases" onclick="showDashboardSection('databases')">{$text_dashboard_databases}</button>
-<button type="button" class="btn btn-secondary dashboard-btn" id="btn-install-uuid" onclick="showDashboardSection('install-uuid')">{$text_dashboard_install_uuid}</button>
-</div>
-HTML;
-
-        $dashboardScript = <<<HTML
-<script>
-function showDashboardSection(section){
-var home = document.getElementById('dashboard-home');
-var updates = document.getElementById('dashboard-updates');
-var env = document.getElementById('dashboard-environment');
-var dbs = document.getElementById('dashboard-databases');
-var installUuid = document.getElementById('dashboard-install-uuid');
-var btnHome = document.getElementById('btn-home');
-var btnUpdates = document.getElementById('btn-updates');
-var btnEnvironment = document.getElementById('btn-environment');
-var btnDatabases = document.getElementById('btn-databases');
-var btnInstallUuid = document.getElementById('btn-install-uuid');
-if(!updates || !env || !dbs || !installUuid || !btnUpdates || !btnEnvironment || !btnDatabases || !btnInstallUuid){ return; }
-
-if(home){ home.style.display = 'none'; }
-updates.style.display = 'none';
-env.style.display = 'none';
-dbs.style.display = 'none';
-installUuid.style.display = 'none';
-if(btnHome){ btnHome.classList.remove('active'); }
-btnUpdates.classList.remove('active');
-btnEnvironment.classList.remove('active');
-btnDatabases.classList.remove('active');
-btnInstallUuid.classList.remove('active');
-
-if(section === 'home' && home){
-    home.style.display = 'block';
-    if(btnHome){ btnHome.classList.add('active'); }
-} else if(section === 'environment'){
-    env.style.display = 'block';
-    btnEnvironment.classList.add('active');
-} else if(section === 'databases'){
-    dbs.style.display = 'block';
-    btnDatabases.classList.add('active');
-} else if(section === 'install-uuid'){
-    installUuid.style.display = 'block';
-    btnInstallUuid.classList.add('active');
-} else {
-    updates.style.display = 'block';
-    btnUpdates.classList.add('active');
-}
-}
-</script>
-HTML;
+        if ('environment' === $activeView) {
+            $mainSection = $envConfigHtml;
+        } elseif ('databases' === $activeView) {
+            $mainSection = $dbConfigHtml;
+        } elseif ('install-uuid' === $activeView) {
+            $mainSection = $installUuidHtml;
+        }
     }
 
     $dropdownScript = <<<'HTML'
@@ -944,6 +935,10 @@ HTML;
         font-weight: 600;
         font-family: inherit;
         line-height: 1.2;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         transition: transform 0.06s ease, background 0.15s ease, box-shadow 0.15s ease;
         box-shadow: var(--shadow-sm);
     }
@@ -959,11 +954,9 @@ HTML;
     .dashboard-btn:hover { background: color-mix(in srgb, var(--brand) 10%, transparent); color: var(--text); }
     .dashboard-btn.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
     .tabs { display: flex; gap: 6px; margin-bottom: 18px; padding: 5px; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 13px; width: fit-content; }
-    .tab { background: transparent; border: none; padding: 8px 16px; cursor: pointer; border-radius: 9px; font-family: inherit; font-size: 0.88rem; font-weight: 600; color: var(--text-muted); }
+    .tab { background: transparent; border: none; padding: 8px 16px; cursor: pointer; border-radius: 9px; font-family: inherit; font-size: 0.88rem; font-weight: 600; color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; }
     .tab:hover { color: var(--text); }
     .tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
     .file-list { list-style: none; padding: 14px 16px; max-height: 320px; overflow-y: auto; background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius); }
     .file-list li { padding: 4px 0; font-family: var(--font-mono); font-size: 0.84rem; color: var(--text-muted); }
     .back-link { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 20px; color: var(--brand); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
@@ -1191,16 +1184,11 @@ HTML;
     </header>
     {$errorHtml}
     {$dashboardNavHtml}
-    {$homeSectionHtml}
-    <div id="dashboard-updates" style="display:{$updatesSectionDisplay}">{$content}</div>
-    <div id="dashboard-environment" style="display:none">{$envConfigHtml}</div>
-    <div id="dashboard-databases" style="display:none">{$dbConfigHtml}</div>
-    <div id="dashboard-install-uuid" style="display:none">{$installUuidHtml}</div>
+    <main class="dashboard-main">{$mainSection}</main>
 </div>
 <footer>
     <a href="https://github.com/oakengine/installer" target="_blank" class="footer-link">github.com/oakengine/installer</a>
 </footer>
-{$dashboardScript}
 {$dropdownScript}
 {$modalScript}
 </body>

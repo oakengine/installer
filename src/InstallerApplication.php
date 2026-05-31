@@ -530,14 +530,8 @@ final class InstallerApplication
                 exit;
             }
 
-            $runnerPackages = $runnerClient->listPackages();
-            $pluginPackages = $pluginClient->listPackages();
-            $dataPackages = $dataClient->listPackages();
             $installedPlugins = resolveInstalledPackages($targetDirFinal, 'plugin');
             $installedDataPackages = resolveInstalledPackages($targetDirFinal, 'data');
-            $runnerPackageHtml = renderPackageListHtml($runnerPackages, 'runner', $langForGlobal);
-            $pluginPackageHtml = renderPackageListHtml($pluginPackages, 'plugin', $langForGlobal);
-            $dataPackageHtml = renderPackageListHtml($dataPackages, 'data', $langForGlobal);
             $installedPluginHtml = renderInstalledPackageListHtml($installedPlugins, $langForGlobal);
             $installedDataHtml = renderInstalledPackageListHtml($installedDataPackages, $langForGlobal);
 
@@ -546,6 +540,7 @@ final class InstallerApplication
                 $installerRefs = getCachedGitHubRepositoryRefs($client, $installerRepo, $githubCacheDir);
                 $instTags = $installerRefs['tags'];
                 $instBranches = $installerRefs['branches'];
+                $itab = resolveInstallerTab($_GET['itab'] ?? null);
 
                 $instBranchHtml = '';
                 foreach ($instBranches as $branch) {
@@ -575,12 +570,19 @@ final class InstallerApplication
 
                 $content = '<div class="repo-info"><strong>'.resolveLangKey('updater_version', $langForGlobal).':</strong> <code>'.htmlspecialchars($currentInstallerVersion).'</code><br><strong>'.resolveLangKey('installer_repository', $langForGlobal).':</strong> <code>'.htmlspecialchars($installerRepo).'</code></div>';
                 $content .= '<a href="?" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
-                $content .= '<div class="tabs"><button class="tab active" onclick="showTab(\'branches\')">'.resolveLangKey('branches', $langForGlobal).' ('.count($instBranches).')</button><button class="tab" onclick="showTab(\'tags\')">'.resolveLangKey('tags', $langForGlobal).' ('.count($instTags).')</button></div>';
-                $content .= '<div id="branches" class="tab-content active"><ul class="branch-list">'.$instBranchHtml.'</ul></div>';
-                $content .= '<div id="tags" class="tab-content"><ul class="tag-list">'.$instTagHtml.'</ul></div>';
-                $content .= '<script>function showTab(t){document.querySelectorAll(".tab-content").forEach(e=>e.classList.remove("active"));document.querySelectorAll(".tab").forEach(e=>e.classList.remove("active"));document.getElementById(t).classList.add("active");event.target.classList.add("active");}</script>';
+                $branchesActiveClass = ('tags' === $itab) ? '' : ' active';
+                $tagsActiveClass = ('tags' === $itab) ? ' active' : '';
+                $content .= '<div class="tabs">'
+                    .'<a class="tab'.$branchesActiveClass.'" href="?manage=installer&itab=branches">'.resolveLangKey('branches', $langForGlobal).' ('.count($instBranches).')</a>'
+                    .'<a class="tab'.$tagsActiveClass.'" href="?manage=installer&itab=tags">'.resolveLangKey('tags', $langForGlobal).' ('.count($instTags).')</a>'
+                    .'</div>';
+                if ('tags' === $itab) {
+                    $content .= '<ul class="tag-list">'.$instTagHtml.'</ul>';
+                } else {
+                    $content .= '<ul class="branch-list">'.$instBranchHtml.'</ul>';
+                }
 
-                echo renderPage(resolveLangKey('installer_management', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''));
+                echo renderPage(resolveLangKey('installer_management', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''), 'installer');
                 exit;
             }
 
@@ -631,17 +633,28 @@ final class InstallerApplication
                 ];
             }
 
-            $dashboardHome = renderStatusOverview($statusItems);
-
-            $text_confirm_clear_cache = resolveLangKey('confirm_clear_cache', $langForGlobal);
-            $content = '<form method="post" style="margin-bottom:20px"><button type="submit" name="clear_cache" class="btn btn-secondary" onclick="return confirm(\''.htmlspecialchars($text_confirm_clear_cache).'\')">'.resolveLangKey('clear_cache', $langForGlobal).'</button></form>';
-            $content .= '<h3 style="margin-bottom:10px;">Runner</h3><ul class="tag-list" style="margin-bottom:20px;">'.$runnerPackageHtml.'</ul>';
-            $content .= '<h3 style="margin-bottom:10px;">Plugin</h3><ul class="tag-list" style="margin-bottom:20px;">'.$pluginPackageHtml.'</ul>';
-            $content .= '<h3 style="margin-bottom:10px;">Data</h3><ul class="tag-list">'.$dataPackageHtml.'</ul>';
+            $statusOverview = renderStatusOverview($statusItems);
 
             $envPath = rtrim($targetDirStr, '/').'/.env.local';
             $hasPassword = (isset($config['password']) && is_scalar($config['password']) && '' !== (string) $config['password']);
-            echo renderPage(resolveLangKey('title', $langForGlobal), $content, null, $envPath, $hasPassword, $dashboardHome);
+            $view = resolveDashboardView($_GET['view'] ?? null);
+
+            if ('updates' === $view) {
+                $runnerPackageHtml = renderPackageListHtml($runnerClient->listPackages(), 'runner', $langForGlobal);
+                $pluginPackageHtml = renderPackageListHtml($pluginClient->listPackages(), 'plugin', $langForGlobal);
+                $dataPackageHtml = renderPackageListHtml($dataClient->listPackages(), 'data', $langForGlobal);
+                $text_confirm_clear_cache = resolveLangKey('confirm_clear_cache', $langForGlobal);
+                $content = '<form method="post" style="margin-bottom:20px"><button type="submit" name="clear_cache" class="btn btn-secondary" onclick="return confirm(\''.htmlspecialchars($text_confirm_clear_cache).'\')">'.resolveLangKey('clear_cache', $langForGlobal).'</button></form>';
+                $content .= '<h3 style="margin-bottom:10px;">Runner</h3><ul class="tag-list" style="margin-bottom:20px;">'.$runnerPackageHtml.'</ul>';
+                $content .= '<h3 style="margin-bottom:10px;">Plugin</h3><ul class="tag-list" style="margin-bottom:20px;">'.$pluginPackageHtml.'</ul>';
+                $content .= '<h3 style="margin-bottom:10px;">Data</h3><ul class="tag-list">'.$dataPackageHtml.'</ul>';
+            } elseif (in_array($view, ['environment', 'databases', 'install-uuid'], true)) {
+                $content = '';
+            } else {
+                $content = $statusOverview;
+            }
+
+            echo renderPage(resolveLangKey('title', $langForGlobal), $content, null, $envPath, $hasPassword, $view);
         } catch (Exception $e) {
             /** @var array<string, string> $langForCatch */
             $langForCatch = (isset($lang) && is_array($lang)) ? $lang : [];

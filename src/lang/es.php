@@ -64,6 +64,7 @@ return [
     'run_migrations' => '🚀 Ejecutar migraciones',
     'confirm_run_migrations' => '¿Estás seguro de que quieres ejecutar las migraciones de la base de datos?',
     'dashboard_install_uuid' => '🆔 Install UUID',
+    'dashboard_installer' => '🛠️ Instalador',
     'install_uuid' => 'Install UUID',
     'install_uuid_help' => 'This UUID is sent with every package API request and can be changed here.',
     'install_uuid_saved' => '✅ Install UUID saved!',

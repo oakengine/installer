@@ -78,6 +78,7 @@ return [
     'files_updated' => '<strong>:count개의 파일</strong>이 업데이트되었습니다.',
     'updated_files' => '업데이트된 파일',
     'dashboard_install_uuid' => '🆔 Install UUID',
+    'dashboard_installer' => '🛠️ 설치 프로그램',
     'install_uuid' => 'Install UUID',
     'install_uuid_help' => 'This UUID is sent with every package API request and can be changed here.',
     'install_uuid_saved' => '✅ Install UUID saved!',
