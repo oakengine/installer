@@ -12,6 +12,25 @@ function extractSemverFromTag(string $tag): ?string
     return null;
 }
 
+function comparePackageVersionsDesc(string $a, string $b): int
+{
+    $semverA = extractSemverFromTag($a);
+    $semverB = extractSemverFromTag($b);
+    if (null !== $semverA && null !== $semverB) {
+        return version_compare($semverB, $semverA);
+    }
+
+    if (null !== $semverA) {
+        return -1;
+    }
+
+    if (null !== $semverB) {
+        return 1;
+    }
+
+    return strnatcasecmp($b, $a);
+}
+
 function formatPackageSize(int $bytes): string
 {
     if ($bytes < 1024) {

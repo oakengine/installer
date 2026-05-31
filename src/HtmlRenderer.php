@@ -3,6 +3,49 @@
 declare(strict_types=1);
 
 /**
+ * Renders a custom, accessible dropdown control that replaces native <select>.
+ * The selected value is submitted through a hidden input named $name.
+ *
+ * @param list<array{value: string, label: string}> $options
+ */
+function renderDropdown(string $name, array $options, string $selectedValue = '', bool $autoSubmit = false, string $extraClass = ''): string
+{
+    $selectedLabel = '';
+    $hasSelected = false;
+    foreach ($options as $option) {
+        if ($option['value'] === $selectedValue) {
+            $selectedLabel = $option['label'];
+            $hasSelected = true;
+
+            break;
+        }
+    }
+
+    if (!$hasSelected && [] !== $options) {
+        $selectedValue = $options[0]['value'];
+        $selectedLabel = $options[0]['label'];
+    }
+
+    $optionsHtml = '';
+    foreach ($options as $option) {
+        $isSelected = $option['value'] === $selectedValue;
+        $optionsHtml .= '<li class="dropdown-option'.($isSelected ? ' is-selected' : '').'" role="option" data-value="'.htmlspecialchars($option['value']).'" aria-selected="'.($isSelected ? 'true' : 'false').'">'.htmlspecialchars($option['label']).'</li>';
+    }
+
+    $classAttr = htmlspecialchars(trim('dropdown '.$extraClass));
+    $autoAttr = $autoSubmit ? ' data-autosubmit="1"' : '';
+
+    return '<div class="'.$classAttr.'"'.$autoAttr.'>'
+        .'<input type="hidden" name="'.htmlspecialchars($name).'" value="'.htmlspecialchars($selectedValue).'">'
+        .'<button type="button" class="dropdown-toggle" aria-haspopup="listbox" aria-expanded="false">'
+        .'<span class="dropdown-label">'.htmlspecialchars($selectedLabel).'</span>'
+        .'<svg class="dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        .'</button>'
+        .'<ul class="dropdown-menu" role="listbox" tabindex="-1">'.$optionsHtml.'</ul>'
+        .'</div>';
+}
+
+/**
  * @param list<array{
  *     package_type: string,
  *     package_id: string,
@@ -22,16 +65,49 @@ function renderPackageListHtml(array $packages, string $packageType, array $lang
         return '<li><em>'.resolveLangKey('no_tags_found', $lang).'</em></li>';
     }
 
-    $html = '';
+    /** @var array<string, list<array{package_type: string, package_id: string, version: string, channel: string, package_name: string, archive_size: int, archive_sha256: string, download_url: string, composer: array<string, mixed>}>> $groups */
+    $groups = [];
+    $order = [];
     foreach ($packages as $package) {
         $packageId = $package['package_id'];
-        $version = $package['version'];
-        $channel = $package['channel'];
-        $archiveSize = (int) $package['archive_size'];
-        $title = 'runner' === $packageType ? $version : sprintf('%s %s', $packageId, $version);
-        $metadataLabel = sprintf('%s · %s', $channel, formatPackageSize($archiveSize));
-        $html .= '<li><span><span class="tag-name">'.htmlspecialchars($title).'</span> <span class="commit-sha">'.htmlspecialchars($metadataLabel).'</span></span>';
-        $html .= '<form method="post" style="display:inline"><input type="hidden" name="package_type" value="'.htmlspecialchars($packageType).'"><input type="hidden" name="package_id" value="'.htmlspecialchars($packageId).'"><input type="hidden" name="version" value="'.htmlspecialchars($version).'"><button type="submit" name="install" class="btn">'.resolveLangKey('install', $lang).'</button></form></li>';
+        if (!isset($groups[$packageId])) {
+            $groups[$packageId] = [];
+            $order[] = $packageId;
+        }
+
+        $groups[$packageId][] = $package;
+    }
+
+    $html = '';
+    foreach ($order as $packageId) {
+        $items = $groups[$packageId];
+        usort($items, static fn (array $a, array $b): int => comparePackageVersionsDesc($a['version'], $b['version']));
+
+        $newest = $items[0];
+        $newestVersion = $newest['version'];
+        $packageName = ('' !== $newest['package_name']) ? $newest['package_name'] : $packageId;
+        $title = $packageName;
+
+        $options = [];
+        foreach ($items as $item) {
+            $version = $item['version'];
+            $channel = $item['channel'];
+            $archiveSize = $item['archive_size'];
+            $options[] = [
+                'value' => $version,
+                'label' => sprintf('%s · %s · %s', $version, $channel, formatPackageSize($archiveSize)),
+            ];
+        }
+
+        $dropdown = renderDropdown('version', $options, $newestVersion, false, 'dropdown-version');
+
+        $html .= '<li><span class="tag-name">'.htmlspecialchars($title).'</span>';
+        $html .= '<form method="post" class="install-form">'
+            .'<input type="hidden" name="package_type" value="'.htmlspecialchars($packageType).'">'
+            .'<input type="hidden" name="package_id" value="'.htmlspecialchars($packageId).'">'
+            .$dropdown
+            .'<button type="submit" name="install" class="btn">'.resolveLangKey('install', $lang).'</button>'
+            .'</form></li>';
     }
 
     return $html;
@@ -142,29 +218,28 @@ function renderPage(string $title, string $content, ?string $error = null, ?stri
     $logoutButton = $showLogout ? '<form method="get" class="logout-form"><input type="hidden" name="logout" value="1"><button type="submit" class="btn btn-secondary btn-small">'.htmlspecialchars($text_logout).'</button></form>' : '';
 
     $text_language = resolveLangKey('language', $langForPage);
-    $langOptions = '';
     global $availableLangs;
     /** @var array<string> $availableLangs */
+    $sessionLangVal = (isset($_SESSION['lang']) && is_string($_SESSION['lang'])) ? (string) $_SESSION['lang'] : 'en';
+    $langDropdownOptions = [];
     if (is_iterable($availableLangs)) {
         foreach ($availableLangs as $code) {
             $codeStr = (is_scalar($code)) ? (string) $code : '';
             if ('' === $codeStr) {
                 continue;
             }
-            $sessionLangVal = (isset($_SESSION['lang']) && is_string($_SESSION['lang'])) ? (string) $_SESSION['lang'] : 'en';
-            $selected = $sessionLangVal === $codeStr ? 'selected' : '';
-            $langName = (string) strtoupper($codeStr);
-            $langOptions .= '<option value="'.htmlspecialchars($codeStr).'" '.$selected.'>'.htmlspecialchars($langName).'</option>';
+
+            $langDropdownOptions[] = ['value' => $codeStr, 'label' => strtoupper($codeStr)];
         }
     }
+
+    $langDropdown = renderDropdown('lang', $langDropdownOptions, $sessionLangVal, true, 'dropdown-lang');
 
     $langSwitcherHtml = <<<HTML
 <div class="lang-switcher">
 <form method="get" class="lang-form" id="langForm">
     <label>{$text_language}:</label>
-    <select name="lang" class="env-select" onchange="document.getElementById('langForm').submit()">
-        {$langOptions}
-    </select>
+    {$langDropdown}
 </form>
 </div>
 HTML;
@@ -180,18 +255,26 @@ HTML;
         /** @var array<string, string> $langForTemplate */
         $langForTemplate = (isset($lang) && is_array($lang)) ? $lang : [];
 
-        $devSelected = 'dev' === $envConfig['app_env'] ? 'selected' : '';
-        $prodSelected = 'prod' === $envConfig['app_env'] ? 'selected' : '';
+        $appEnvDropdown = renderDropdown('app_env', [
+            ['value' => 'dev', 'label' => 'Dev'],
+            ['value' => 'prod', 'label' => 'Prod'],
+        ], (string) $envConfig['app_env'], false, 'dropdown-env');
 
-        $dbOptions = '';
+        $databaseOptions = [];
+        $activeDbValue = '';
         foreach ($envConfig['databases'] as $db) {
             $dbIdVal = (isset($db['id']) && is_scalar($db['id'])) ? (string) $db['id'] : '';
             if ('' === $dbIdVal) {
                 continue;
             }
-            $selected = (!empty($db['active'])) ? 'selected' : '';
-            $dbOptions .= '<option value="'.htmlspecialchars($dbIdVal).'" '.$selected.'>'.htmlspecialchars($dbIdVal).'</option>';
+
+            $databaseOptions[] = ['value' => $dbIdVal, 'label' => $dbIdVal];
+            if (!empty($db['active'])) {
+                $activeDbValue = $dbIdVal;
+            }
         }
+
+        $databaseDropdown = renderDropdown('database', $databaseOptions, $activeDbValue, false, 'dropdown-db');
 
         $text_mode = resolveLangKey('mode', $langForTemplate);
         $text_database = resolveLangKey('database', $langForTemplate);
@@ -223,20 +306,21 @@ HTML;
         $migrationsCount = (isset($migrationsData['count']) && is_scalar($migrationsData['count'])) ? (int) $migrationsData['count'] : 0;
         $migrationsDisabled = (0 === $migrationsCount || !empty($migrationsData['error']) || isset($migrationsData['no_migrations']) || isset($migrationsData['no_db'])) ? 'disabled' : '';
 
-        $dbRemoveOptions = '';
+        $removeDbOptions = [];
         foreach ($envConfig['databases'] as $db) {
             $dbIdStr = (isset($db['id']) && is_scalar($db['id'])) ? (string) $db['id'] : '';
             if ('' === $dbIdStr) {
                 continue;
             }
-            $dbLabel = htmlspecialchars($dbIdStr.((!empty($db['active'])) ? ' (active)' : ''));
-            $dbValue = htmlspecialchars($dbIdStr);
-            $dbRemoveOptions .= '<option value="'.$dbValue.'">'.$dbLabel.'</option>';
+
+            $removeDbOptions[] = ['value' => $dbIdStr, 'label' => $dbIdStr.((!empty($db['active'])) ? ' (active)' : '')];
         }
 
-        if ('' === $dbRemoveOptions) {
-            $dbRemoveOptions = '<option value="">-</option>';
+        if ([] === $removeDbOptions) {
+            $removeDbOptions[] = ['value' => '', 'label' => '-'];
         }
+
+        $removeDbDropdown = renderDropdown('remove_db_id', $removeDbOptions, '', false, 'dropdown-db');
 
         $envRawContent = htmlspecialchars((string) $envConfig['raw_content']);
         $currentInstallUuid = htmlspecialchars((string) ($envConfig['install_uuid'] ?? ''));
@@ -246,10 +330,7 @@ HTML;
 <form method="post" class="env-form" style="margin-bottom: 20px;">
     <div class="env-row">
         <label>{$text_mode}:</label>
-        <select name="app_env" class="env-select">
-            <option value="dev" {$devSelected}>Dev</option>
-            <option value="prod" {$prodSelected}>Prod</option>
-        </select>
+        {$appEnvDropdown}
     </div>
     <button type="submit" name="save_env" class="btn btn-secondary btn-small">{$text_save}</button>
 </form>
@@ -280,9 +361,7 @@ HTML;
 <form method="post" class="env-form" style="margin-bottom: 20px;">
     <div class="env-row">
         <label>{$text_database}:</label>
-        <select name="database" class="env-select">
-            {$dbOptions}
-        </select>
+        {$databaseDropdown}
     </div>
     <button type="submit" name="save_env" class="btn btn-secondary btn-small">{$text_save}</button>
 </form>
@@ -305,9 +384,7 @@ HTML;
 <form method="post" class="env-form">
     <div class="env-row">
         <label>{$text_select_database}:</label>
-        <select name="remove_db_id" class="env-select">
-            {$dbRemoveOptions}
-        </select>
+        {$removeDbDropdown}
     </div>
     <button type="submit" name="remove_database" class="btn btn-small">{$text_remove_database}</button>
 </form>
@@ -379,6 +456,94 @@ if(section === 'environment'){
 </script>
 HTML;
     }
+
+    $dropdownScript = <<<'HTML'
+<script>
+(function(){
+    function initDropdown(dd){
+        var toggle = dd.querySelector('.dropdown-toggle');
+        var menu = dd.querySelector('.dropdown-menu');
+        var labelEl = dd.querySelector('.dropdown-label');
+        var input = dd.querySelector('input[type=hidden]');
+        var options = Array.prototype.slice.call(dd.querySelectorAll('.dropdown-option'));
+        if(!toggle || !menu || !input){ return; }
+        function open(){
+            closeAll(dd);
+            dd.classList.add('is-open');
+            toggle.setAttribute('aria-expanded', 'true');
+            setActive(dd.querySelector('.dropdown-option.is-selected') || options[0]);
+        }
+        function close(){
+            dd.classList.remove('is-open');
+            toggle.setAttribute('aria-expanded', 'false');
+        }
+        function setActive(opt){
+            options.forEach(function(o){ o.classList.remove('is-active'); });
+            if(opt){ opt.classList.add('is-active'); opt.scrollIntoView({ block: 'nearest' }); }
+        }
+        function select(opt){
+            if(!opt){ return; }
+            input.value = opt.getAttribute('data-value');
+            if(labelEl){ labelEl.textContent = opt.textContent; }
+            options.forEach(function(o){ o.classList.remove('is-selected'); o.setAttribute('aria-selected', 'false'); });
+            opt.classList.add('is-selected');
+            opt.setAttribute('aria-selected', 'true');
+            close();
+            toggle.focus();
+            if(dd.hasAttribute('data-autosubmit')){
+                var form = dd.closest('form');
+                if(form){
+                    if(typeof form.requestSubmit === 'function'){ form.requestSubmit(); } else { form.submit(); }
+                }
+            }
+        }
+        toggle.addEventListener('click', function(e){
+            e.preventDefault();
+            if(dd.classList.contains('is-open')){ close(); } else { open(); }
+        });
+        options.forEach(function(opt){
+            opt.addEventListener('click', function(){ select(opt); });
+            opt.addEventListener('mousemove', function(){ setActive(opt); });
+        });
+        dd.addEventListener('keydown', function(e){
+            var isOpen = dd.classList.contains('is-open');
+            if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+                e.preventDefault();
+                if(!isOpen){ open(); return; }
+                var idx = options.indexOf(dd.querySelector('.dropdown-option.is-active'));
+                idx = e.key === 'ArrowDown' ? Math.min(options.length - 1, idx + 1) : Math.max(0, idx - 1);
+                setActive(options[idx]);
+            } else if(e.key === 'Enter' || e.key === ' '){
+                if(isOpen){ e.preventDefault(); select(dd.querySelector('.dropdown-option.is-active')); }
+                else if(document.activeElement === toggle){ e.preventDefault(); open(); }
+            } else if(e.key === 'Escape'){
+                if(isOpen){ e.preventDefault(); close(); toggle.focus(); }
+            }
+        });
+    }
+    function closeAll(except){
+        Array.prototype.slice.call(document.querySelectorAll('.dropdown.is-open')).forEach(function(dd){
+            if(dd !== except){
+                dd.classList.remove('is-open');
+                var t = dd.querySelector('.dropdown-toggle');
+                if(t){ t.setAttribute('aria-expanded', 'false'); }
+            }
+        });
+    }
+    document.addEventListener('click', function(e){
+        if(!e.target.closest || !e.target.closest('.dropdown')){ closeAll(null); }
+    });
+    function initAll(){
+        Array.prototype.slice.call(document.querySelectorAll('.dropdown')).forEach(initDropdown);
+    }
+    if(document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', initAll);
+    } else {
+        initAll();
+    }
+})();
+</script>
+HTML;
 
     global $lang;
     /** @var array<string, string> $langForTitle */
@@ -615,6 +780,70 @@ HTML;
         header { flex-direction: column; align-items: stretch; }
         .header-right { align-items: flex-start; }
     }
+    .dropdown { position: relative; display: inline-block; min-width: 130px; text-align: left; }
+    .dropdown-toggle {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 12px;
+        border: 1px solid var(--border-strong);
+        border-radius: 9px;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 0.88rem;
+        font-family: inherit;
+        cursor: pointer;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .dropdown-toggle:hover { border-color: var(--brand); }
+    .dropdown.is-open .dropdown-toggle, .dropdown-toggle:focus-visible { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
+    .dropdown-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dropdown-chevron { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-soft); transition: transform 0.2s ease; }
+    .dropdown.is-open .dropdown-chevron { transform: rotate(180deg); }
+    .dropdown-menu {
+        position: absolute;
+        z-index: 50;
+        top: calc(100% + 6px);
+        left: 0;
+        min-width: 100%;
+        margin: 0;
+        padding: 6px;
+        list-style: none;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 11px;
+        box-shadow: var(--shadow-lg);
+        max-height: 280px;
+        overflow-y: auto;
+        opacity: 0;
+        transform: translateY(-6px) scale(0.98);
+        transform-origin: top;
+        pointer-events: none;
+        transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+    .dropdown.is-open .dropdown-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+    .dropdown-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 7px;
+        cursor: pointer;
+        font-size: 0.88rem;
+        color: var(--text);
+        white-space: nowrap;
+    }
+    .dropdown-option.is-active { background: var(--surface-muted); }
+    .dropdown-option.is-selected { color: var(--brand-strong); font-weight: 600; }
+    .dropdown-option.is-selected::after { content: '✓'; color: var(--brand); font-weight: 700; }
+    .dropdown-version { min-width: 220px; }
+    .install-form { display: inline-flex; align-items: center; gap: 10px; }
+    .tag-list { overflow: visible; }
+    .tag-list li:first-child { border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
+    .tag-list li:last-child { border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); }
 </style>
 </head>
 <body>
@@ -651,6 +880,7 @@ HTML;
     <a href="https://github.com/oakengine/installer" target="_blank" class="footer-link">github.com/oakengine/installer</a>
 </footer>
 {$dashboardScript}
+{$dropdownScript}
 </body>
 </html>
 HTML;

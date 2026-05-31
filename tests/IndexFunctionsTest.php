@@ -195,15 +195,68 @@ final class IndexFunctionsTest extends TestCase
                 'download_url' => 'https://example.com/download',
                 'composer' => ['name' => 'oak/runner'],
             ],
+            [
+                'package_type' => 'runner',
+                'package_id' => 'oak-runner',
+                'version' => '1.10.0',
+                'channel' => 'stable',
+                'package_name' => 'oak/runner',
+                'archive_size' => 4096,
+                'archive_sha256' => 'hash2',
+                'download_url' => 'https://example.com/download2',
+                'composer' => ['name' => 'oak/runner'],
+            ],
         ];
 
         $html = renderPackageListHtml($packages, 'runner', ['install' => 'Install', 'no_tags_found' => 'None']);
 
         $this->assertStringContainsString('1.2.3', $html);
+        $this->assertStringContainsString('1.10.0', $html);
         $this->assertStringContainsString('stable', $html);
         $this->assertStringContainsString('2.0 KB', $html);
         $this->assertStringContainsString('name="package_type" value="runner"', $html);
+        $this->assertStringContainsString('class="dropdown dropdown-version"', $html);
+        $this->assertStringContainsString('<input type="hidden" name="version" value="1.10.0">', $html);
+        $this->assertStringNotContainsString('<select', $html);
+        $this->assertSame(1, substr_count($html, 'name="install"'));
         $this->assertSame('<li><em>None</em></li>', renderPackageListHtml([], 'runner', ['no_tags_found' => 'None']));
+    }
+
+    public function testRenderDropdownPreselectsValueAndReplacesSelect(): void
+    {
+        $html = renderDropdown('app_env', [
+            ['value' => 'dev', 'label' => 'Dev'],
+            ['value' => 'prod', 'label' => 'Prod'],
+        ], 'prod', false, 'dropdown-env');
+
+        $this->assertStringContainsString('class="dropdown dropdown-env"', $html);
+        $this->assertStringContainsString('<input type="hidden" name="app_env" value="prod">', $html);
+        $this->assertStringContainsString('data-value="prod" aria-selected="true"', $html);
+        $this->assertStringContainsString('<span class="dropdown-label">Prod</span>', $html);
+        $this->assertStringNotContainsString('<select', $html);
+        $this->assertStringNotContainsString('data-autosubmit', $html);
+    }
+
+    public function testRenderDropdownFallsBackToFirstOptionAndSupportsAutoSubmit(): void
+    {
+        $html = renderDropdown('lang', [
+            ['value' => 'en', 'label' => 'EN'],
+            ['value' => 'de', 'label' => 'DE'],
+        ], 'xx', true);
+
+        $this->assertStringContainsString('data-autosubmit="1"', $html);
+        $this->assertStringContainsString('<input type="hidden" name="lang" value="en">', $html);
+        $this->assertStringContainsString('<span class="dropdown-label">EN</span>', $html);
+    }
+
+    public function testComparePackageVersionsDesc(): void
+    {
+        $versions = ['1.2.0', '1.10.0', '1.9.0'];
+        usort($versions, 'comparePackageVersionsDesc');
+        $this->assertSame(['1.10.0', '1.9.0', '1.2.0'], $versions);
+
+        $this->assertLessThan(0, comparePackageVersionsDesc('1.0.0', 'main'));
+        $this->assertGreaterThan(0, comparePackageVersionsDesc('main', '1.0.0'));
     }
 
     public function testRenderInstalledPackageListHtml(): void
