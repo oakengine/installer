@@ -649,10 +649,10 @@ namespace {
     use Oak\Engine\Installer\ProjectPackageArchiveExtractor;
 
     /**
-     * GitInstall - GitHub Repository Installer.
+     * Oak Engine Installer - package and self-update installer.
      *
-     * Downloads and extracts branches or tags from GitHub repositories.
-     * Style inspired by Composer.
+     * Installs runner, plugin, and data packages from the package API and
+     * self-updates the installer from the GitHub repository.
      */
     if (PHP_SAPI !== 'cli') {
         session_start();
@@ -1377,7 +1377,7 @@ namespace {
         public function __construct(string $baseUrl, private readonly string $token, private readonly string $installerVersion = 'unknown')
         {
             $this->baseUrl = rtrim($baseUrl, '/');
-            $this->userAgent = 'SymfonyGitInstaller/'.$this->installerVersion;
+            $this->userAgent = 'OakEngineInstaller/'.$this->installerVersion;
         }
 
         /**
@@ -1589,7 +1589,7 @@ namespace {
             exit;
         }
 
-        if (isset($_SESSION['gitinstall_authenticated']) && true === $_SESSION['gitinstall_authenticated']) {
+        if (isset($_SESSION['oak_installer_authenticated']) && true === $_SESSION['oak_installer_authenticated']) {
             return;
         }
 
@@ -1597,8 +1597,8 @@ namespace {
             $inputPassword = (string) $_POST['password'];
 
             if (password_verify($inputPassword, $password) || hash_equals($password, $inputPassword)) {
-                $_SESSION['gitinstall_authenticated'] = true;
-                $_SESSION['gitinstall_auth_time'] = time();
+                $_SESSION['oak_installer_authenticated'] = true;
+                $_SESSION['oak_installer_auth_time'] = time();
                 header('Location: ?');
                 exit;
             }
@@ -1805,14 +1805,14 @@ HTML;
      */
     function extractZip(string $zipContent, string $targetDir, array $excludeFolders, array $excludeFiles, array $whitelistFolders, array $whitelistFiles): array
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'gitinstall_');
+        $tempFile = tempnam(sys_get_temp_dir(), 'oak_installer_');
         file_put_contents($tempFile, $zipContent);
         try {
             $zip = new ZipArchive();
             if (true !== $zip->open($tempFile)) {
                 throw new RuntimeException('Failed to open ZIP');
             }
-            $tempExtractDir = sys_get_temp_dir().'/gitinstall_'.uniqid();
+            $tempExtractDir = sys_get_temp_dir().'/oak_installer_'.uniqid();
             if (!\Oak\Engine\Installer\createDirectoryTree($tempExtractDir, 0o755)) {
                 throw new RuntimeException('Temp extract directory cannot be created: '.$tempExtractDir);
             }
@@ -2313,10 +2313,12 @@ HTML;
             'runner' => [
                 $scanDir.'/runner/*/core/*/*/composer.json',
                 $scanDir.'/runner/core/*/*/composer.json',
+                $scanDir.'/runner/*/core/*/composer.json',
             ],
             'plugin' => [
                 $scanDir.'/runner/*/plugin/*/*/composer.json',
                 $scanDir.'/runner/plugin/*/*/composer.json',
+                $scanDir.'/runner/*/plugin/*/composer.json',
             ],
         ];
 
@@ -2325,7 +2327,7 @@ HTML;
         /** @var list<array{path: string, package_type: string, metadata: array<string, mixed>}> $pluginMetadataSources */
         $pluginMetadataSources = [];
 
-        if (!is_dir($scanDir.'/runner') && is_file($rootComposerPath)) {
+        if (is_file($rootComposerPath)) {
             $rootMetadata = readComposerJsonMetadata($rootComposerPath);
             if ([] !== extractPackageEnvConfig($rootMetadata, 'runner')) {
                 $runnerMetadataSources['composer.json'] = [
@@ -2346,7 +2348,7 @@ HTML;
                 foreach ($matchedPaths as $matchedPath) {
                     $normalizedPath = str_replace('\\', '/', $matchedPath);
                     $relativePath = substr($normalizedPath, strlen(str_replace('\\', '/', $scanDir)) + 1);
-                    if (!is_string($relativePath) || '' === $relativePath) {
+                    if ('' === $relativePath) {
                         continue;
                     }
 
@@ -2829,71 +2831,247 @@ HTML;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{$title} - GitInstall</title>
+    <title>{$title} · Oak Engine Installer</title>
     <style>
+        :root {
+            color-scheme: light dark;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, 'Liberation Mono', monospace;
+            --bg: #eef1f6;
+            --bg-gradient: radial-gradient(1200px 600px at 50% -10%, #e7ecf6 0%, #eef1f6 45%, #e9edf3 100%);
+            --surface: #ffffff;
+            --surface-muted: #f5f7fb;
+            --surface-inset: #eef1f7;
+            --border: #e3e8f0;
+            --border-strong: #d2d9e6;
+            --text: #1f2733;
+            --text-muted: #5b6675;
+            --text-soft: #8a94a6;
+            --brand: #5b6cff;
+            --brand-strong: #4250e6;
+            --brand-soft: rgba(91, 108, 255, 0.12);
+            --accent: #1f9d6b;
+            --accent-strong: #178257;
+            --danger: #d8392b;
+            --code-bg: #1f2733;
+            --code-text: #e8ecf4;
+            --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+            --shadow-md: 0 10px 30px -12px rgba(16, 24, 40, 0.25);
+            --shadow-lg: 0 24px 60px -20px rgba(16, 24, 40, 0.35);
+            --radius-sm: 8px;
+            --radius: 12px;
+            --radius-lg: 18px;
+            --ring: 0 0 0 3px var(--brand-soft);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0c0f16;
+                --bg-gradient: radial-gradient(1200px 600px at 50% -10%, #14304a 0%, #0e1320 45%, #0c0f16 100%);
+                --surface: #131825;
+                --surface-muted: #171d2c;
+                --surface-inset: #1b2233;
+                --border: #232c3f;
+                --border-strong: #2c374e;
+                --text: #e8ecf4;
+                --text-muted: #a4afc2;
+                --text-soft: #7c879b;
+                --brand: #7c8bff;
+                --brand-strong: #6677ff;
+                --brand-soft: rgba(124, 139, 255, 0.16);
+                --accent: #34d399;
+                --accent-strong: #10b981;
+                --danger: #f87171;
+                --code-bg: #0b0f18;
+                --code-text: #d7def0;
+                --shadow-md: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+                --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+            }
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 30px; }
-        header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-        .header-left h1 { color: #24292e; margin-bottom: 5px; }
-        .header-left h2 { color: #586069; font-size: 1.1em; margin-bottom: 0; font-weight: normal; }
-        .header-right { text-align: right; }
-        .repo-info { background: #f6f8fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
-        .repo-info code { background: #24292e; color: #fff; padding: 2px 8px; border-radius: 3px; }
-        .error { background: #ffeef0; color: #86181d; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #fdc8c8; }
-        .success { background: #e6ffed; color: #144620; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #bef5cb; }
-        .warning { background: #fff8e6; color: #735c0f; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #f0d8a8; }
-        .branch-list, .tag-list { list-style: none; }
-        .branch-list li, .tag-list li { padding: 10px 15px; border-bottom: 1px solid #e1e4e8; display: flex; justify-content: space-between; align-items: center; }
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg);
+            background-image: var(--bg-gradient);
+            background-attachment: fixed;
+            color: var(--text);
+            padding: 32px 18px 64px;
+            line-height: 1.55;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+        h3 { font-size: 1.02rem; font-weight: 650; letter-spacing: -0.01em; }
+        a { color: var(--brand); }
+        code, pre { font-family: var(--font-mono); }
+        .container {
+            max-width: 860px;
+            margin: 0 auto;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            padding: 34px 36px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 18px;
+            margin-bottom: 26px;
+            padding-bottom: 22px;
+            border-bottom: 1px solid var(--border);
+        }
+        .brand { display: flex; align-items: center; gap: 14px; }
+        .brand-mark {
+            width: 46px; height: 46px;
+            display: grid; place-items: center;
+            border-radius: 13px;
+            background: linear-gradient(135deg, var(--brand) 0%, #8b5bff 100%);
+            box-shadow: 0 8px 20px -8px var(--brand);
+            color: #fff;
+        }
+        .brand-mark svg { width: 26px; height: 26px; display: block; }
+        .header-left h1 { font-size: 1.4rem; font-weight: 720; letter-spacing: -0.02em; color: var(--text); line-height: 1.15; }
+        .header-left h2 { color: var(--text-muted); font-size: 0.92rem; font-weight: 500; margin-top: 2px; }
+        .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+        .repo-info {
+            background: var(--surface-muted);
+            border: 1px solid var(--border);
+            padding: 16px 18px;
+            border-radius: var(--radius);
+            margin-bottom: 22px;
+            font-size: 0.92rem;
+            line-height: 1.9;
+        }
+        .repo-info code, code {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.85em;
+        }
+        .error, .success, .warning {
+            padding: 14px 16px 14px 18px;
+            border-radius: var(--radius);
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-left-width: 4px;
+            font-size: 0.93rem;
+        }
+        .error { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+        .success { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+        .warning { background: color-mix(in srgb, #e0a72e 14%, var(--surface)); color: #9a6b00; border-color: color-mix(in srgb, #e0a72e 40%, transparent); }
+        .success code, .warning code, .error code { background: rgba(127,127,127,0.18); color: inherit; }
+        .branch-list, .tag-list { list-style: none; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+        .branch-list li, .tag-list li {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            transition: background 0.15s ease;
+        }
         .branch-list li:last-child, .tag-list li:last-child { border-bottom: none; }
-        .branch-list li:hover, .tag-list li:hover { background: #f6f8fa; }
-        .branch-name, .tag-name { font-family: 'SF Mono', Consolas, monospace; color: #0366d6; font-weight: 500; }
-        .commit-sha { font-family: 'SF Mono', Consolas, monospace; font-size: 0.85em; color: #6a737d; margin-left: 10px; }
-        .btn { background: #28a745; color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.9em; }
-        .btn:hover { background: #22863a; }
-        .btn-secondary { background: #0366d6; }
-        .btn-secondary:hover { background: #0056b3; }
-        .dashboard-nav { display: flex; gap: 10px; margin-bottom: 15px; }
-        .dashboard-btn.active { background: #24292e; }
-        .tabs { margin-bottom: 20px; }
-        .tab { background: #f6f8fa; border: 1px solid #e1e4e8; padding: 8px 16px; cursor: pointer; border-radius: 6px 6px 0 0; margin-right: 5px; }
-        .tab.active { background: white; border-bottom-color: white; }
+        .branch-list li:hover, .tag-list li:hover { background: var(--surface-muted); }
+        .branch-name, .tag-name { font-family: var(--font-mono); color: var(--brand); font-weight: 600; font-size: 0.92rem; }
+        .commit-sha { font-family: var(--font-mono); font-size: 0.82em; color: var(--text-soft); margin-left: 10px; }
+        .btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 9px;
+            cursor: pointer;
+            font-size: 0.88rem;
+            font-weight: 600;
+            font-family: inherit;
+            line-height: 1.2;
+            transition: transform 0.06s ease, background 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: var(--shadow-sm);
+        }
+        .btn:hover { background: var(--accent-strong); box-shadow: var(--shadow-md); }
+        .btn:active { transform: translateY(1px); }
+        .btn:focus-visible { outline: none; box-shadow: var(--ring); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+        .btn-secondary { background: var(--brand); }
+        .btn-secondary:hover { background: var(--brand-strong); }
+        .btn-small { padding: 7px 13px; font-size: 0.82rem; }
+        .dashboard-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; padding: 5px; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 13px; }
+        .dashboard-btn { background: transparent; color: var(--text-muted); box-shadow: none; border-radius: 9px; }
+        .dashboard-btn:hover { background: color-mix(in srgb, var(--brand) 10%, transparent); color: var(--text); }
+        .dashboard-btn.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+        .tabs { display: flex; gap: 6px; margin-bottom: 18px; padding: 5px; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 13px; width: fit-content; }
+        .tab { background: transparent; border: none; padding: 8px 16px; cursor: pointer; border-radius: 9px; font-family: inherit; font-size: 0.88rem; font-weight: 600; color: var(--text-muted); }
+        .tab:hover { color: var(--text); }
+        .tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
         .tab-content { display: none; }
-        .tab-content.active { display: block; border: 1px solid #e1e4e8; border-radius: 0 0 6px 6px; }
-        .file-list { list-style: none; padding: 15px; max-height: 300px; overflow-y: auto; }
-        .file-list li { padding: 5px 0; font-family: monospace; font-size: 0.9em; }
-        .back-link { display: inline-block; margin-bottom: 20px; color: #0366d6; text-decoration: none; }
+        .tab-content.active { display: block; }
+        .file-list { list-style: none; padding: 14px 16px; max-height: 320px; overflow-y: auto; background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius); }
+        .file-list li { padding: 4px 0; font-family: var(--font-mono); font-size: 0.84rem; color: var(--text-muted); }
+        .back-link { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 20px; color: var(--brand); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+        .back-link::before { content: '←'; }
         .back-link:hover { text-decoration: underline; }
-        .logout-form { margin-bottom: 10px; display: inline-block; }
-        .home-btn { display: inline-block; margin-bottom: 10px; text-decoration: none; }
-        .login-form { max-width: 300px; margin: 20px auto; }
-        .login-form input[type="password"] { width: 100%; padding: 12px; border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 10px; font-size: 1em; }
+        .logout-form { display: inline-block; }
+        .home-btn { display: inline-block; text-decoration: none; }
+        .login-form { max-width: 340px; margin: 36px auto; }
+        .login-form p { color: var(--text-muted); margin-bottom: 14px; }
+        .login-form input[type="password"] { width: 100%; padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: 10px; margin-bottom: 12px; font-size: 1em; font-family: inherit; background: var(--surface-muted); color: var(--text); }
+        .login-form input[type="password"]:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
         .login-form .btn { width: 100%; padding: 12px; }
-        .env-config { background: #f6f8fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
-        .env-form { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .env-config { background: var(--surface-muted); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius); margin-bottom: 22px; }
+        .env-form { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
         .env-row { display: flex; align-items: center; gap: 8px; }
-        .env-row label { font-weight: 500; color: #586069; }
-        .env-select { padding: 6px 12px; border: 1px solid #e1e4e8; border-radius: 6px; font-size: 0.9em; min-width: 100px; }
-        .env-input { padding: 6px 12px; border: 1px solid #e1e4e8; border-radius: 6px; font-size: 0.9em; min-width: 120px; }
-        .env-textarea { width: 100%; min-height: 180px; padding: 10px; border: 1px solid #e1e4e8; border-radius: 6px; font-family: monospace; font-size: 0.9em; }
-        .btn-small { padding: 6px 12px; font-size: 0.85em; }
-        .lang-switcher { margin-bottom: 10px; }
-        .lang-form label { font-size: 0.85em; color: #586069; margin-right: 5px; }
-        footer { margin-top: 20px; text-align: center; }
-        .footer-link { color: #586069; text-decoration: none; font-size: 0.8em; }
-        .footer-link:hover { text-decoration: underline; }
+        .env-row label { font-weight: 600; color: var(--text-muted); font-size: 0.88rem; }
+        .env-select, .env-input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-strong);
+            border-radius: 9px;
+            font-size: 0.88rem;
+            font-family: inherit;
+            background: var(--surface);
+            color: var(--text);
+            min-width: 110px;
+        }
+        .env-input { min-width: 130px; }
+        .env-select:focus, .env-input:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
+        .env-textarea { width: 100%; min-height: 200px; padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius); font-family: var(--font-mono); font-size: 0.86rem; background: var(--surface); color: var(--text); resize: vertical; }
+        .env-textarea:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
+        pre { background: var(--surface-muted); border: 1px solid var(--border); padding: 15px; border-radius: var(--radius); font-size: 0.86rem; white-space: pre-wrap; color: var(--text-muted); }
+        hr { border: none; border-top: 1px solid var(--border); }
+        .lang-switcher { margin: 0; }
+        .lang-form { display: flex; align-items: center; gap: 6px; }
+        .lang-form label { font-size: 0.82rem; color: var(--text-muted); }
+        footer { margin-top: 28px; text-align: center; }
+        .footer-link { color: var(--text-soft); text-decoration: none; font-size: 0.82rem; }
+        .footer-link:hover { color: var(--brand); text-decoration: underline; }
+        @media (max-width: 600px) {
+            .container { padding: 24px 20px; border-radius: var(--radius); }
+            header { flex-direction: column; align-items: stretch; }
+            .header-right { align-items: flex-start; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <div class="header-left">
-                <h1>🔄 GitInstall</h1>
-                <h2>{$appTitle}</h2>
+            <div class="brand">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2 3 6.5v7L12 18l9-4.5v-7L12 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                        <path d="M3 6.5 12 11l9-4.5M12 11v7" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                    </svg>
+                </span>
+                <div class="header-left">
+                    <h1>Oak Engine Installer</h1>
+                    <h2>{$appTitle}</h2>
+                </div>
             </div>
             <div class="header-right">
-                {$homeButton}
-                {$logoutButton}
+                <div class="header-actions">
+                    {$homeButton}
+                    {$logoutButton}
+                </div>
                 {$langSwitcherHtml}
             </div>
         </header>
