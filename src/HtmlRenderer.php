@@ -83,6 +83,54 @@ function renderStatusOverview(array $items): string
 }
 
 /**
+ * Renders an accessible modal dialog. The body is treated as trusted HTML.
+ */
+function renderModal(string $modalId, string $title, string $bodyHtml, string $closeLabel = 'Close'): string
+{
+    $idAttr = htmlspecialchars($modalId);
+
+    return '<div class="modal" id="'.$idAttr.'" role="dialog" aria-modal="true" aria-hidden="true">'
+        .'<div class="modal-backdrop" data-modal-close="'.$idAttr.'"></div>'
+        .'<div class="modal-dialog" role="document">'
+        .'<div class="modal-header">'
+        .'<h3 class="modal-title">'.htmlspecialchars($title).'</h3>'
+        .'<button type="button" class="modal-close" data-modal-close="'.$idAttr.'" aria-label="'.htmlspecialchars($closeLabel).'">&times;</button>'
+        .'</div>'
+        .'<div class="modal-body">'.$bodyHtml.'</div>'
+        .'</div></div>';
+}
+
+/**
+ * Renders a list of whitelist entries. A single entry is shown as a chip;
+ * multiple entries collapse into a count badge that opens a details modal.
+ *
+ * @param list<string> $items
+ */
+function renderWhitelistValue(array $items, string $countLabel, string $modalTitle, string $closeLabel = 'Close'): string
+{
+    if ([] === $items) {
+        return '';
+    }
+
+    if (1 === count($items)) {
+        return '<div class="status-chips"><span class="status-chip">'.htmlspecialchars($items[0]).'</span></div>';
+    }
+
+    $modalId = 'modal-whitelist';
+    $trigger = '<button type="button" class="status-count" data-modal-open="'.$modalId.'">'
+        .'<span class="status-count-num">'.count($items).'</span>'
+        .'<span class="status-count-text">'.htmlspecialchars($countLabel).'</span>'
+        .'</button>';
+
+    $listHtml = '';
+    foreach ($items as $item) {
+        $listHtml .= '<li><code>'.htmlspecialchars($item).'</code></li>';
+    }
+
+    return $trigger.renderModal($modalId, $modalTitle, '<ul class="modal-list">'.$listHtml.'</ul>', $closeLabel);
+}
+
+/**
  * @param list<array{
  *     package_type: string,
  *     package_id: string,
@@ -601,6 +649,54 @@ HTML;
 </script>
 HTML;
 
+    $modalScript = <<<'HTML'
+<script>
+(function(){
+    function openModal(modal){
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+        var closeBtn = modal.querySelector('.modal-close');
+        if(closeBtn){ closeBtn.focus(); }
+    }
+    function closeModal(modal){
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+        if(!document.querySelector('.modal.is-open')){ document.body.classList.remove('modal-open'); }
+    }
+    function initModals(){
+        Array.prototype.slice.call(document.querySelectorAll('.modal')).forEach(function(modal){
+            document.body.appendChild(modal);
+        });
+        document.addEventListener('click', function(e){
+            var opener = e.target.closest ? e.target.closest('[data-modal-open]') : null;
+            if(opener){
+                e.preventDefault();
+                var target = document.getElementById(opener.getAttribute('data-modal-open'));
+                if(target){ openModal(target); }
+                return;
+            }
+            var closer = e.target.closest ? e.target.closest('[data-modal-close]') : null;
+            if(closer){
+                e.preventDefault();
+                var modal = document.getElementById(closer.getAttribute('data-modal-close'));
+                if(modal){ closeModal(modal); }
+            }
+        });
+        document.addEventListener('keydown', function(e){
+            if(e.key === 'Escape'){
+                Array.prototype.slice.call(document.querySelectorAll('.modal.is-open')).forEach(closeModal);
+            }
+        });
+    }
+    if(document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', initModals);
+    } else {
+        initModals();
+    }
+})();
+</script>
+HTML;
     global $lang;
     /** @var array<string, string> $langForTitle */
     $langForTitle = (isset($lang) && is_array($lang)) ? $lang : [];
@@ -974,6 +1070,101 @@ HTML;
     .tag-list { overflow: visible; }
     .tag-list li:first-child { border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
     .tag-list li:last-child { border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); }
+    .status-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 4px 6px 4px 4px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface-muted);
+        color: var(--text);
+        font: inherit;
+        font-size: 0.82rem;
+        cursor: pointer;
+        transition: border-color .15s ease, background .15s ease;
+    }
+    .status-count:hover { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, var(--surface)); }
+    .status-count:focus-visible { outline: none; box-shadow: var(--ring); }
+    .status-count-num {
+        display: grid;
+        place-items: center;
+        min-width: 22px;
+        height: 22px;
+        padding: 0 6px;
+        border-radius: 999px;
+        background: var(--brand);
+        color: #fff;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+    .status-count-text { color: var(--text-muted); padding-right: 4px; }
+    .modal {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    .modal.is-open { display: flex; }
+    .modal-backdrop {
+        position: absolute;
+        inset: 0;
+        background: color-mix(in srgb, #0b1220 55%, transparent);
+        backdrop-filter: blur(2px);
+    }
+    .modal-dialog {
+        position: relative;
+        width: 100%;
+        max-width: 460px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        animation: modalIn .16s ease;
+    }
+    @keyframes modalIn { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+    .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--border);
+    }
+    .modal-title { font-size: 1.02rem; font-weight: 650; color: var(--text); }
+    .modal-close {
+        flex: none;
+        width: 30px;
+        height: 30px;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 1.3rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: background .15s ease, color .15s ease;
+    }
+    .modal-close:hover { background: var(--surface-muted); color: var(--text); }
+    .modal-body { padding: 14px 18px 18px; overflow-y: auto; }
+    .modal-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .modal-list li { display: flex; }
+    .modal-list code {
+        flex: 1;
+        background: var(--code-bg);
+        color: var(--code-text);
+        padding: 7px 11px;
+        border-radius: 8px;
+        font-size: 0.86rem;
+        word-break: break-all;
+    }
+    body.modal-open { overflow: hidden; }
 </style>
 </head>
 <body>
@@ -1011,6 +1202,7 @@ HTML;
 </footer>
 {$dashboardScript}
 {$dropdownScript}
+{$modalScript}
 </body>
 </html>
 HTML;

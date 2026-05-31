@@ -7,6 +7,8 @@ return [
     'repository' => 'Репозиторий',
     'target_directory' => 'Целевой каталог',
     'whitelist_active' => 'Белый список активен',
+    'whitelist_count' => ':count записей',
+    'close' => 'Закрыть',
     'clear_cache' => '🗑️ Очистить кэш',
     'home' => '🏠 Главная',
     'confirm_clear_cache' => 'Действительно очистить кэш?',

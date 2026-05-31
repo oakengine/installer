@@ -7,6 +7,8 @@ return [
     'repository' => 'Server-Endpunkt',
     'target_directory' => 'Zielverzeichnis',
     'whitelist_active' => 'Whitelist aktiv',
+    'whitelist_count' => ':count Einträge',
+    'close' => 'Schließen',
     'clear_cache' => '🗑️ Cache leeren',
     'home' => '🏠 Home',
     'confirm_clear_cache' => 'Wirklich Cache leeren?',

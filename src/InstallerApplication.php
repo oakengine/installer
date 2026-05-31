@@ -619,19 +619,15 @@ final class InstallerApplication
 
             if (!empty($whitelistFolders) || !empty($whitelistFiles)) {
                 $wlItems = array_merge($whitelistFolders, $whitelistFiles);
-                /** @var array<string> $wlItemsString */
-                $wlItemsString = array_map(fn ($item) => (string) $item, $wlItems);
-                $wlChips = '';
-                foreach (array_slice($wlItemsString, 0, 8) as $wlItem) {
-                    $wlChips .= '<span class="status-chip">'.htmlspecialchars($wlItem).'</span>';
-                }
-                if (count($wlItems) > 8) {
-                    $wlChips .= '<span class="status-chip">&hellip;</span>';
-                }
+                /** @var list<string> $wlItemsString */
+                $wlItemsString = array_values(array_map(fn ($item) => (string) $item, $wlItems));
+                $wlTitle = resolveLangKey('whitelist_active', $langForGlobal);
+                $wlCountLabel = resolveLangKey('whitelist_count', $langForGlobal, ['count' => count($wlItemsString)]);
+                $wlCloseLabel = resolveLangKey('close', $langForGlobal);
                 $statusItems[] = [
                     'icon' => 'shield',
-                    'label' => resolveLangKey('whitelist_active', $langForGlobal),
-                    'value' => '<div class="status-chips">'.$wlChips.'</div>',
+                    'label' => $wlTitle,
+                    'value' => renderWhitelistValue($wlItemsString, $wlCountLabel, $wlTitle, $wlCloseLabel),
                 ];
             }
 

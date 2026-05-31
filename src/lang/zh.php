@@ -7,6 +7,8 @@ return [
     'repository' => '仓库',
     'target_directory' => '目标目录',
     'whitelist_active' => '白名单已启用',
+    'whitelist_count' => ':count 个条目',
+    'close' => '关闭',
     'clear_cache' => '🗑️ 清除缓存',
     'home' => '🏠 首页',
     'confirm_clear_cache' => '确定要清除缓存吗？',

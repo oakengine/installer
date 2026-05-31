@@ -7,6 +7,8 @@ return [
     'repository' => '저장소',
     'target_directory' => '대상 디렉토리',
     'whitelist_active' => '화이트리스트 활성',
+    'whitelist_count' => ':count개 항목',
+    'close' => '닫기',
     'clear_cache' => '🗑️ 캐시 지우기',
     'home' => '🏠 홈',
     'confirm_clear_cache' => '정말로 캐시를 지우시겠습니까?',

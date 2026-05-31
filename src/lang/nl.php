@@ -7,6 +7,8 @@ return [
     'repository' => 'Repository',
     'target_directory' => 'Doelmap',
     'whitelist_active' => 'Whitelist actief',
+    'whitelist_count' => ':count items',
+    'close' => 'Sluiten',
     'clear_cache' => '🗑️ Cache wissen',
     'home' => '🏠 Home',
     'confirm_clear_cache' => 'Echt cache wissen?',

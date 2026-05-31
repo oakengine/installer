@@ -222,6 +222,43 @@ final class IndexFunctionsTest extends TestCase
         $this->assertSame('<li><em>None</em></li>', renderPackageListHtml([], 'runner', ['no_tags_found' => 'None']));
     }
 
+    public function testRenderModal(): void
+    {
+        $html = renderModal('modal-x', 'Details', '<p>Body</p>', 'Close');
+
+        $this->assertStringContainsString('<div class="modal" id="modal-x" role="dialog" aria-modal="true" aria-hidden="true">', $html);
+        $this->assertStringContainsString('data-modal-close="modal-x"', $html);
+        $this->assertStringContainsString('<h3 class="modal-title">Details</h3>', $html);
+        $this->assertStringContainsString('aria-label="Close"', $html);
+        $this->assertStringContainsString('<div class="modal-body"><p>Body</p></div>', $html);
+    }
+
+    public function testRenderWhitelistValueSingleEntryShowsChip(): void
+    {
+        $html = renderWhitelistValue(['public/update'], '1 entries', 'Whitelist', 'Close');
+
+        $this->assertStringContainsString('<div class="status-chips"><span class="status-chip">public/update</span></div>', $html);
+        $this->assertStringNotContainsString('status-count', $html);
+        $this->assertStringNotContainsString('class="modal"', $html);
+    }
+
+    public function testRenderWhitelistValueMultipleEntriesShowsCountAndModal(): void
+    {
+        $html = renderWhitelistValue(['public/update', '.env.local', 'config/app.php'], '3 entries', 'Whitelist active', 'Close');
+
+        $this->assertStringContainsString('data-modal-open="modal-whitelist"', $html);
+        $this->assertStringContainsString('<span class="status-count-num">3</span>', $html);
+        $this->assertStringContainsString('3 entries', $html);
+        $this->assertStringContainsString('id="modal-whitelist"', $html);
+        $this->assertStringContainsString('<li><code>config/app.php</code></li>', $html);
+        $this->assertStringContainsString('<ul class="modal-list">', $html);
+    }
+
+    public function testRenderWhitelistValueEmptyReturnsEmptyString(): void
+    {
+        $this->assertSame('', renderWhitelistValue([], '0 entries', 'Whitelist', 'Close'));
+    }
+
     public function testFormatVersionBadge(): void
     {
         $this->assertSame('<code>1.0.0</code> <span class="status-badge">stable</span>', formatVersionBadge('1.0.0 (stable)'));

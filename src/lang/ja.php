@@ -7,6 +7,8 @@ return [
     'repository' => 'リポジトリ',
     'target_directory' => 'インストール先ディレクトリ',
     'whitelist_active' => 'ホワイトリスト有効',
+    'whitelist_count' => ':count 件',
+    'close' => '閉じる',
     'clear_cache' => '🗑️ キャッシュをクリア',
     'home' => '🏠 ホーム',
     'confirm_clear_cache' => '本当にキャッシュをクリアしますか？',

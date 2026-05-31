@@ -7,6 +7,8 @@ return [
     'repository' => 'Repositório',
     'target_directory' => 'Diretório de destino',
     'whitelist_active' => 'Lista branca ativa',
+    'whitelist_count' => ':count entradas',
+    'close' => 'Fechar',
     'clear_cache' => '🗑️ Limpar cache',
     'home' => '🏠 Início',
     'confirm_clear_cache' => 'Realmente limpar o cache?',

@@ -7,6 +7,8 @@ return [
     'repository' => 'Server Endpoint',
     'target_directory' => 'Target directory',
     'whitelist_active' => 'Whitelist active',
+    'whitelist_count' => ':count entries',
+    'close' => 'Close',
     'clear_cache' => '🗑️ Clear cache',
     'home' => '🏠 Home',
     'confirm_clear_cache' => 'Really clear cache?',

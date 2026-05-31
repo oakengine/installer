@@ -7,6 +7,8 @@ return [
     'repository' => 'Repozytorium',
     'target_directory' => 'Katalog docelowy',
     'whitelist_active' => 'Biała lista aktywna',
+    'whitelist_count' => ':count wpisów',
+    'close' => 'Zamknij',
     'clear_cache' => '🗑️ Wyczyść pamięć podręczną',
     'home' => '🏠 Home',
     'confirm_clear_cache' => 'Czy na pewno wyczyścić pamięć podręczną?',
