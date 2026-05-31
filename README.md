@@ -33,6 +33,7 @@ A lightweight PHP installer for Oak Engine deployments. The project installation
 | Key | Description |
 | --- | --- |
 | `project_api_url` | Base URL of the package server endpoint used for project packages. |
+| `project_api_token` | Optional bearer token for the package API. |
 | `target_directory` | Directory where the selected runner package is installed. |
 | `installer_repository` | GitHub repository used for installer self-updates. |
 | `installer_version` | Current installer version; updated automatically after self-update. |
@@ -63,7 +64,7 @@ The installer accepts list and detail responses that provide package metadata in
 }
 ```
 
-For package lists, the endpoint can return either a plain array or an object with a `packages` array. The installer sends the current Install UUID as `X-Install-UUID` on every package API request.
+For package lists, the endpoint can return either a plain array or an object with a `packages` array. The installer sends the current Install UUID as `X-Install-UUID` and, when configured, the package API token as `Authorization: Bearer ...`.
 
 ## Security notes
 

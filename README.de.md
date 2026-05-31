@@ -33,6 +33,7 @@ Ein leichtgewichtiges PHP-Installationswerkzeug fuer Oak-Engine-Deployments. Die
 | Schluessel | Beschreibung |
 | --- | --- |
 | `project_api_url` | Basis-URL des Package-Server-Endpunkts fuer Projektpakete. |
+| `project_api_token` | Optionales Bearer-Token fuer die Package-API. |
 | `target_directory` | Verzeichnis, in das das gewaehlte Runner-Paket installiert wird. |
 | `installer_repository` | GitHub-Repository fuer Self-Updates des Installers. |
 | `installer_version` | Aktuelle Installer-Version; wird nach Self-Updates automatisch gepflegt. |
@@ -63,7 +64,7 @@ Der Installer akzeptiert Listen- und Detailantworten mit Paket-Metadaten in dies
 }
 ```
 
-Fuer Paketlisten darf der Endpunkt entweder ein nacktes Array oder ein Objekt mit einem `packages`-Array liefern. Bei jeder Package-API-Anfrage sendet der Installer die aktuelle Install UUID im Header `X-Install-UUID`.
+Fuer Paketlisten darf der Endpunkt entweder ein nacktes Array oder ein Objekt mit einem `packages`-Array liefern. Bei jeder Package-API-Anfrage sendet der Installer die aktuelle Install UUID im Header `X-Install-UUID` und - falls konfiguriert - das API-Token als `Authorization: Bearer ...`.
 
 ## Sicherheitshinweise
 

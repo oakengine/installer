@@ -144,6 +144,7 @@ namespace Oak\Engine\Installer {
             private string $baseUrl,
             private string $packageType = 'runner',
             private string $installUuid = '',
+            private string $projectApiToken = '',
         ) {
         }
 
@@ -238,9 +239,7 @@ namespace Oak\Engine\Installer {
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_TIMEOUT => 300,
-                CURLOPT_HTTPHEADER => [
-                    'X-Install-UUID: '.$this->buildPayload([])['install_uuid'],
-                ],
+                CURLOPT_HTTPHEADER => $this->buildHeaders(),
             ]);
 
             $response = curl_exec($ch);
@@ -278,9 +277,7 @@ namespace Oak\Engine\Installer {
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_TIMEOUT => 30,
-                CURLOPT_HTTPHEADER => [
-                    'Accept: application/json',
-                ],
+                CURLOPT_HTTPHEADER => $this->buildHeaders(true),
             ]);
 
             $response = curl_exec($ch);
@@ -315,7 +312,7 @@ namespace Oak\Engine\Installer {
         {
             $installUuid = trim($this->installUuid);
             if ('' === $installUuid) {
-                throw new \RuntimeException('Project package API requires an install UUID.');
+                return $payload;
             }
 
             if (1 !== preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', strtolower($installUuid))) {
@@ -325,6 +322,29 @@ namespace Oak\Engine\Installer {
             $payload['install_uuid'] = strtolower($installUuid);
 
             return $payload;
+        }
+
+        /**
+         * @return list<string>
+         */
+        private function buildHeaders(bool $acceptJson = false): array
+        {
+            $headers = [];
+            if ($acceptJson) {
+                $headers[] = 'Accept: application/json';
+            }
+
+            $projectApiToken = trim($this->projectApiToken);
+            if ('' !== $projectApiToken) {
+                $headers[] = 'Authorization: Bearer '.$projectApiToken;
+            }
+
+            $installUuid = trim($this->installUuid);
+            if ('' !== $installUuid) {
+                $headers[] = 'X-Install-UUID: '.strtolower($installUuid);
+            }
+
+            return $headers;
         }
 
         private function normalizeScalar(mixed $value, string $fallback = ''): string
@@ -3028,9 +3048,12 @@ HTML;
         global $lang;
         /** @var array<string, string> $langForGlobal */
         $langForGlobal = (isset($lang) && is_array($lang)) ? $lang : [];
-        $runnerClient = new ProjectPackageApiClient($projectApiUrl, 'runner', $installUuid);
-        $pluginClient = new ProjectPackageApiClient($projectApiUrl, 'plugin', $installUuid);
-        $dataClient = new ProjectPackageApiClient($projectApiUrl, 'data', $installUuid);
+        $projectApiToken = isset($config['project_api_token']) && is_scalar($config['project_api_token'])
+            ? trim((string) $config['project_api_token'])
+            : '';
+        $runnerClient = new ProjectPackageApiClient($projectApiUrl, 'runner', $installUuid, $projectApiToken);
+        $pluginClient = new ProjectPackageApiClient($projectApiUrl, 'plugin', $installUuid, $projectApiToken);
+        $dataClient = new ProjectPackageApiClient($projectApiUrl, 'data', $installUuid, $projectApiToken);
         $archiveExtractor = new ProjectPackageArchiveExtractor();
 
         if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['save_env'])) {

@@ -41,6 +41,9 @@ $query = [];
 parse_str(parse_url($_SERVER['REQUEST_URI'], PHP_URL_QUERY) ?? '', $query);
 $packageType = (string) ($query['package_type'] ?? $query['type'] ?? 'runner');
 $version = (string) ($query['version'] ?? '1.0.0');
+$installUuid = (string) ($_POST['install_uuid'] ?? '');
+$authorization = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+$hasAccess = '018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1' === $installUuid || 'Bearer package-token' === $authorization;
 
 $packages = [
     [
@@ -68,6 +71,13 @@ $packages = [
 ];
 
 if ('/' === $path || '/packages' === $path) {
+    if (!$hasAccess) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'forbidden']);
+        return;
+    }
+
     header('Content-Type: application/json');
     echo json_encode([
         'packages' => array_values(array_filter($packages, static fn (array $package): bool => $package['package_type'] === $packageType)),
@@ -76,14 +86,28 @@ if ('/' === $path || '/packages' === $path) {
 }
 
 if ('/packages/runner/oak-runner' === $path) {
+    if (!$hasAccess) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'forbidden']);
+        return;
+    }
+
     header('Content-Type: application/json');
     echo json_encode($packages[0]);
     return;
 }
 
 if ('/downloads/oak-runner-1.0.0.tar.gz' === $path) {
+    if ('018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1' !== ($_SERVER['HTTP_X_INSTALL_UUID'] ?? '') && 'Bearer package-token' !== $authorization) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'forbidden']);
+        return;
+    }
+
     header('Content-Type: application/octet-stream');
-    echo 'runner-package-'.$version.'-'.($_SERVER['HTTP_X_INSTALL_UUID'] ?? 'missing');
+    echo 'runner-package-'.$version.'-'.($_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['HTTP_X_INSTALL_UUID'] ?? 'missing'));
     return;
 }
 
@@ -116,7 +140,20 @@ PHP;
 
         $attempt = 0;
         while ($attempt < 20) {
-            $response = @file_get_contents(self::$baseUrl.'/?package_type=runner');
+            $response = @file_get_contents(
+                (string) self::$baseUrl,
+                false,
+                stream_context_create([
+                    'http' => [
+                        'method' => 'POST',
+                        'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+                        'content' => http_build_query([
+                            'type' => 'runner',
+                            'install_uuid' => '018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1',
+                        ]),
+                    ],
+                ]),
+            );
             if (false !== $response) {
                 return;
             }
@@ -179,6 +216,18 @@ PHP;
         $this->assertSame((string) self::$baseUrl.'/downloads/oak-runner-1.0.0.tar.gz', $package['download_url']);
         $this->assertStringContainsString('runner-package-1.0.0', $download);
         $this->assertStringContainsString('018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1', $download);
+    }
+
+    public function testProjectPackageApiClientSupportsBearerTokenWithoutInstallUuid(): void
+    {
+        $client = new ProjectPackageApiClient((string) self::$baseUrl, 'runner', '', 'package-token');
+
+        $packages = $client->listPackages();
+        $download = $client->downloadPackage('oak-runner', '1.0.0');
+
+        $this->assertCount(1, $packages);
+        $this->assertStringContainsString('runner-package-1.0.0', $download);
+        $this->assertStringContainsString('Bearer package-token', $download);
     }
 
     public function testProjectPackageArchiveExtractorExtractsTarGzPackages(): void
