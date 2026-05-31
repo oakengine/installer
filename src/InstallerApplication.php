@@ -635,17 +635,17 @@ final class InstallerApplication
                 ];
             }
 
-            $content = renderStatusOverview($statusItems);
+            $dashboardHome = renderStatusOverview($statusItems);
 
             $text_confirm_clear_cache = resolveLangKey('confirm_clear_cache', $langForGlobal);
-            $content .= '<form method="post" style="margin-bottom:20px"><button type="submit" name="clear_cache" class="btn btn-secondary" onclick="return confirm(\''.htmlspecialchars($text_confirm_clear_cache).'\')">'.resolveLangKey('clear_cache', $langForGlobal).'</button></form>';
+            $content = '<form method="post" style="margin-bottom:20px"><button type="submit" name="clear_cache" class="btn btn-secondary" onclick="return confirm(\''.htmlspecialchars($text_confirm_clear_cache).'\')">'.resolveLangKey('clear_cache', $langForGlobal).'</button></form>';
             $content .= '<h3 style="margin-bottom:10px;">Runner</h3><ul class="tag-list" style="margin-bottom:20px;">'.$runnerPackageHtml.'</ul>';
             $content .= '<h3 style="margin-bottom:10px;">Plugin</h3><ul class="tag-list" style="margin-bottom:20px;">'.$pluginPackageHtml.'</ul>';
             $content .= '<h3 style="margin-bottom:10px;">Data</h3><ul class="tag-list">'.$dataPackageHtml.'</ul>';
 
             $envPath = rtrim($targetDirStr, '/').'/.env.local';
             $hasPassword = (isset($config['password']) && is_scalar($config['password']) && '' !== (string) $config['password']);
-            echo renderPage(resolveLangKey('title', $langForGlobal), $content, null, $envPath, $hasPassword);
+            echo renderPage(resolveLangKey('title', $langForGlobal), $content, null, $envPath, $hasPassword, $dashboardHome);
         } catch (Exception $e) {
             /** @var array<string, string> $langForCatch */
             $langForCatch = (isset($lang) && is_array($lang)) ? $lang : [];

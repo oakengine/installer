@@ -1142,6 +1142,26 @@ ENV;
         $this->assertStringContainsString('Logout', $html);
     }
 
+    public function testRenderPageShowsHomeDashboardSection(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $GLOBALS['availableLangs'] = ['en', 'de'];
+        $_SESSION['lang'] = 'en';
+
+        $targetDir = $this->createTempDirectory();
+        $envPath = $targetDir.'/.env.local';
+        file_put_contents($envPath, "APP_ENV=prod\n");
+
+        $html = renderPage('Installer', '<p>Packages</p>', null, $envPath, false, '<section class="status-overview">HOME</section>');
+
+        $this->assertStringContainsString('id="dashboard-home"', $html);
+        $this->assertStringContainsString('id="btn-home"', $html);
+        $this->assertStringContainsString('HOME', $html);
+        $this->assertStringContainsString('<div id="dashboard-updates" style="display:none">', $html);
+        $this->assertStringContainsString('dashboard-btn active" id="btn-home"', $html);
+        $this->assertStringNotContainsString('class="btn btn-secondary btn-small home-btn"', $html);
+    }
+
     private function createTempDirectory(): string
     {
         $directory = sys_get_temp_dir().'/installer_test_'.uniqid('', true);

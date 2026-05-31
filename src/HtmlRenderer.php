@@ -242,15 +242,13 @@ HTML;
     exit;
 }
 
-function renderPage(string $title, string $content, ?string $error = null, ?string $envPath = null, bool $showLogout = false): string
+function renderPage(string $title, string $content, ?string $error = null, ?string $envPath = null, bool $showLogout = false, ?string $dashboardHome = null): string
 {
     global $lang;
     /** @var array<string, string> $langForPage */
     $langForPage = (isset($lang) && is_array($lang)) ? $lang : [];
 
     $errorHtml = (null !== $error && '' !== $error) ? '<div class="error">'.htmlspecialchars((string) $error).'</div>' : '';
-    $text_home = resolveLangKey('home', $langForPage);
-    $homeButton = '<a href="?" class="btn btn-secondary btn-small home-btn">'.htmlspecialchars($text_home).'</a>';
     $text_logout = resolveLangKey('logout', $langForPage);
     $logoutButton = $showLogout ? '<form method="get" class="logout-form"><input type="hidden" name="logout" value="1"><button type="submit" class="btn btn-secondary btn-small">'.htmlspecialchars($text_logout).'</button></form>' : '';
 
@@ -286,6 +284,8 @@ HTML;
     $installUuidHtml = '';
     $dashboardNavHtml = '';
     $dashboardScript = '';
+    $homeSectionHtml = '';
+    $updatesSectionDisplay = 'block';
     if (null !== $envPath) {
         $envConfig = parseEnvLocal($envPath);
         global $lang;
@@ -445,9 +445,21 @@ HTML;
 </div>
 HTML;
 
+        $text_dashboard_home = resolveLangKey('home', $langForTemplate);
+
+        $homeNavButton = '';
+        $updatesActiveClass = ' active';
+        if (null !== $dashboardHome) {
+            $homeNavButton = '<button type="button" class="btn btn-secondary dashboard-btn active" id="btn-home" onclick="showDashboardSection(\'home\')">'.$text_dashboard_home.'</button>';
+            $homeSectionHtml = '<div id="dashboard-home" style="display:block">'.$dashboardHome.'</div>';
+            $updatesActiveClass = '';
+            $updatesSectionDisplay = 'none';
+        }
+
         $dashboardNavHtml = <<<HTML
 <div class="dashboard-nav">
-<button type="button" class="btn btn-secondary dashboard-btn active" id="btn-updates" onclick="showDashboardSection('updates')">{$text_dashboard_updates}</button>
+{$homeNavButton}
+<button type="button" class="btn btn-secondary dashboard-btn{$updatesActiveClass}" id="btn-updates" onclick="showDashboardSection('updates')">{$text_dashboard_updates}</button>
 <button type="button" class="btn btn-secondary dashboard-btn" id="btn-environment" onclick="showDashboardSection('environment')">{$text_dashboard_environment}</button>
 <button type="button" class="btn btn-secondary dashboard-btn" id="btn-databases" onclick="showDashboardSection('databases')">{$text_dashboard_databases}</button>
 <button type="button" class="btn btn-secondary dashboard-btn" id="btn-install-uuid" onclick="showDashboardSection('install-uuid')">{$text_dashboard_install_uuid}</button>
@@ -457,26 +469,33 @@ HTML;
         $dashboardScript = <<<HTML
 <script>
 function showDashboardSection(section){
+var home = document.getElementById('dashboard-home');
 var updates = document.getElementById('dashboard-updates');
 var env = document.getElementById('dashboard-environment');
 var dbs = document.getElementById('dashboard-databases');
 var installUuid = document.getElementById('dashboard-install-uuid');
+var btnHome = document.getElementById('btn-home');
 var btnUpdates = document.getElementById('btn-updates');
 var btnEnvironment = document.getElementById('btn-environment');
 var btnDatabases = document.getElementById('btn-databases');
 var btnInstallUuid = document.getElementById('btn-install-uuid');
 if(!updates || !env || !dbs || !installUuid || !btnUpdates || !btnEnvironment || !btnDatabases || !btnInstallUuid){ return; }
 
+if(home){ home.style.display = 'none'; }
 updates.style.display = 'none';
 env.style.display = 'none';
 dbs.style.display = 'none';
 installUuid.style.display = 'none';
+if(btnHome){ btnHome.classList.remove('active'); }
 btnUpdates.classList.remove('active');
 btnEnvironment.classList.remove('active');
 btnDatabases.classList.remove('active');
 btnInstallUuid.classList.remove('active');
 
-if(section === 'environment'){
+if(section === 'home' && home){
+    home.style.display = 'block';
+    if(btnHome){ btnHome.classList.add('active'); }
+} else if(section === 'environment'){
     env.style.display = 'block';
     btnEnvironment.classList.add('active');
 } else if(section === 'databases'){
@@ -855,7 +874,6 @@ HTML;
     .back-link::before { content: '←'; }
     .back-link:hover { text-decoration: underline; }
     .logout-form { display: inline-block; }
-    .home-btn { display: inline-block; text-decoration: none; }
     .login-form { max-width: 340px; margin: 36px auto; }
     .login-form p { color: var(--text-muted); margin-bottom: 14px; }
     .login-form input[type="password"] { width: 100%; padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: 10px; margin-bottom: 12px; font-size: 1em; font-family: inherit; background: var(--surface-muted); color: var(--text); }
@@ -975,7 +993,6 @@ HTML;
         </div>
         <div class="header-right">
             <div class="header-actions">
-                {$homeButton}
                 {$logoutButton}
             </div>
             {$langSwitcherHtml}
@@ -983,7 +1000,8 @@ HTML;
     </header>
     {$errorHtml}
     {$dashboardNavHtml}
-    <div id="dashboard-updates" style="display:block">{$content}</div>
+    {$homeSectionHtml}
+    <div id="dashboard-updates" style="display:{$updatesSectionDisplay}">{$content}</div>
     <div id="dashboard-environment" style="display:none">{$envConfigHtml}</div>
     <div id="dashboard-databases" style="display:none">{$dbConfigHtml}</div>
     <div id="dashboard-install-uuid" style="display:none">{$installUuidHtml}</div>
