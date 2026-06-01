@@ -68,6 +68,8 @@
         "test": ["@bin-phpunit-no-coverage"],
         "test-coverage": ["@bin-phpunit-coverage"],
         "test-full": ["@bin-phpunit"],
+        "build": ["php bin/build.php"],
+
         "test-watch": ["@bin-phpunit --testdox"],
 
         "ci": ["@bin-ecs", "@bin-rector", "@bin-phpstan", "@bin-phpunit-no-coverage"],
