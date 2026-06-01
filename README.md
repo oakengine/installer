@@ -1,6 +1,6 @@
-# Oak Engine Installer
+# OakEngine Installer
 
-A lightweight PHP installer for Oak Engine deployments. The project installation flow now uses a **server endpoint** that exposes runner, plugin, and data packages. Only the installer self-update still talks to GitHub.
+A lightweight PHP installer for OakEngine deployments. The project installation flow now uses a **server endpoint** that exposes runner, plugin, and data packages. Only the installer self-update still talks to GitHub.
 
 ## Features
 

@@ -1,4 +1,4 @@
-# Oak Engine Installer
+# OakEngine Installer
 
 Ein leichtgewichtiges PHP-Installationswerkzeug fuer Oak-Engine-Deployments. Die Projektinstallation laeuft jetzt ueber einen **Server-Endpunkt**, der Runner-, Plugin- und Data-Pakete bereitstellt. Nur das Self-Update des Installers nutzt weiterhin GitHub.
 
