@@ -14,7 +14,7 @@ function resolveInstallerVersion(array $config, array $tags): string
         $configured = trim((string) $config['installer_version']);
     }
     if ('' !== $configured) {
-        return $configured;
+        return selfAppendInstallerCommit($configured, $config);
     }
 
     $composerVersion = resolveComposerPackageVersion(dirname(__DIR__, 2).'/composer.json');
@@ -23,6 +23,25 @@ function resolveInstallerVersion(array $config, array $tags): string
     }
 
     return 'unknown';
+}
+
+function selfAppendInstallerCommit(string $version, array $config): string
+{
+    // If version is a semver tag, return as-is
+    if (null !== extractSemverFromTag($version)) {
+        return $version;
+    }
+
+    // Non-semver (e.g. branch name): append commit hash
+    $commit = '';
+    if (isset($config['installer_commit']) && is_scalar($config['installer_commit'])) {
+        $commit = trim((string) $config['installer_commit']);
+    }
+    if ('' !== $commit) {
+        return $version.substr($commit, 0, 7);
+    }
+
+    return $version;
 }
 
 /**

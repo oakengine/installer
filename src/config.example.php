@@ -9,6 +9,8 @@ return [
 
     'installer_version' => '',
 
+    'installer_commit' => '',
+
     'installer_repository' => 'oakengine/installer',
 
     'project_api_url' => 'https://srcma.eu',

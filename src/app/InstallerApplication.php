@@ -400,8 +400,14 @@ final class InstallerApplication
                 $selfUpdateResult = updateUpdaterFromTag($client, $installerRepo, $tag, $updaterSourcePath, $srcRoot);
                 $updatedCount = (int) count($selfUpdateResult['updated_files']);
 
+                $refCommit = '';
+                if (isset($_POST['ref_commit']) && is_scalar($_POST['ref_commit'])) {
+                    $refCommit = trim((string) $_POST['ref_commit']);
+                }
+
                 writeConfigValues($configPath, [
                     'installer_version' => (string) $tag,
+                    'installer_commit' => $refCommit,
                 ]);
 
                 $content = '<div class="success">'.resolveLangKey('updater_updated', $langForGlobal, ['tag' => htmlspecialchars($tag)]).'<br>';
@@ -550,7 +556,7 @@ final class InstallerApplication
                     $bCommitShort = substr($bCommit, 0, 7);
                     $instBranchHtml .= '<li><span><span class="branch-name">'.htmlspecialchars($bName).'</span>'
                         .'<span class="commit-sha">'.htmlspecialchars($bCommitShort).'</span></span>';
-                    $instBranchHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($bName).'"><input type="hidden" name="ref_type" value="branch"><button type="submit" name="self_update" class="btn">'.resolveLangKey('install', $langForGlobal).'</button></form></li>';
+                    $instBranchHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($bName).'"><input type="hidden" name="ref_commit" value="'.htmlspecialchars($bCommit).'"><input type="hidden" name="ref_type" value="branch"><button type="submit" name="self_update" class="btn">'.resolveLangKey('install', $langForGlobal).'</button></form></li>';
                 }
 
                 $instTagHtml = '';
@@ -559,7 +565,7 @@ final class InstallerApplication
                     $tCommit = (isset($tag['commit'])) ? (string) $tag['commit'] : '';
                     $tCommitShort = substr($tCommit, 0, 7);
                     $instTagHtml .= '<li><span><span class="tag-name">'.htmlspecialchars($tName).'</span><span class="commit-sha">'.htmlspecialchars($tCommitShort).'</span></span>';
-                    $instTagHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($tName).'"><button type="submit" name="self_update" class="btn">'.resolveLangKey('install', $langForGlobal).'</button></form></li>';
+                    $instTagHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($tName).'"><input type="hidden" name="ref_commit" value="'.htmlspecialchars($tCommit).'"><button type="submit" name="self_update" class="btn">'.resolveLangKey('install', $langForGlobal).'</button></form></li>';
                 }
 
                 if (empty($instBranches)) {
