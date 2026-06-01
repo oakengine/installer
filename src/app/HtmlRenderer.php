@@ -845,14 +845,15 @@ HTML;
                 var confirmButton = e.target.closest ? e.target.closest('[data-confirm-submit]') : null;
                 if(!confirmButton || !pendingConfirmForm){ return; }
                 e.preventDefault();
-                pendingConfirmForm.dataset.confirmApproved = '1';
+                var formToSubmit = pendingConfirmForm;
+                formToSubmit.dataset.confirmApproved = '1';
                 var modal = document.getElementById('modal-confirm-action');
                 if(modal){ closeModal(modal); }
                 if(typeof HTMLFormElement !== 'undefined' && HTMLFormElement.prototype.submit){
-                    HTMLFormElement.prototype.submit.call(pendingConfirmForm);
+                    HTMLFormElement.prototype.submit.call(formToSubmit);
                     return;
                 }
-                pendingConfirmForm.submit();
+                formToSubmit.submit();
             });
             document.addEventListener('keydown', function(e){
                 if(e.key === 'Escape'){
