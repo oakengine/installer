@@ -312,26 +312,58 @@ function renderPackageListHtml(array $packages, string $packageType, array $lang
 }
 
 /**
+ * Renders installed packages like renderWhitelistValue: single item as a chip,
+ * multiple items as a count badge that opens a details modal.
+ *
  * @param list<array{name: string, version: string, channel: string}> $packages
  * @param array<string, string>                                       $lang
  */
-function renderInstalledPackageListHtml(array $packages, array $lang): string
+function renderInstalledPackageListHtml(array $packages, array $lang, string $modalId = 'modal-installed-packages', string $modalTitle = ''): string
 {
     if ([] === $packages) {
         return '<em>'.resolveLangKey('none_installed', $lang).'</em>';
     }
 
-    $parts = [];
-    foreach ($packages as $package) {
+    if (1 === count($packages)) {
+        $package = $packages[0];
         $metadata = $package['version'];
         if ('' !== $package['channel']) {
             $metadata .= sprintf(' (%s)', $package['channel']);
         }
 
-        $parts[] = '<span class="status-chip">'.htmlspecialchars($package['name']).' <span class="commit-sha">'.htmlspecialchars($metadata).'</span></span>';
+        return '<div class="status-chips"><span class="status-chip">'.htmlspecialchars($package['name']).' <span class="commit-sha">'.htmlspecialchars($metadata).'</span></span></div>';
     }
 
-    return '<div class="status-chips">'.implode('', $parts).'</div>';
+    $countLabel = resolveLangKey('whitelist_count', $lang, ['count' => count($packages)]);
+    $countText = trim($countLabel);
+    $countPrefix = (string) count($packages);
+    if (str_starts_with($countText, $countPrefix)) {
+        $trimmedCountText = ltrim(substr($countText, strlen($countPrefix)), " \t\n\r\0\x0B:.-");
+        if ('' !== $trimmedCountText) {
+            $countText = $trimmedCountText;
+        }
+    }
+
+    $trigger = '<button type="button" class="status-count" data-modal-open="'.htmlspecialchars($modalId).'">'
+        .'<span class="status-count-num">'.count($packages).'</span>'
+        .'<span class="status-count-text">'.htmlspecialchars($countText).'</span>'
+        .'</button>';
+
+    $listHtml = '';
+    foreach ($packages as $package) {
+        $metadata = $package['version'];
+        if ('' !== $package['channel']) {
+            $metadata .= sprintf(' (%s)', $package['channel']);
+        }
+        $listHtml .= '<li><code>'.htmlspecialchars($package['name']).' <span class="commit-sha">'.htmlspecialchars($metadata).'</span></code></li>';
+    }
+
+    if ('' === $modalTitle) {
+        $modalTitle = resolveLangKey('installed_plugins', $lang);
+    }
+    $closeLabel = resolveLangKey('close', $lang);
+
+    return $trigger.renderModal($modalId, $modalTitle, '<ul class="modal-list">'.$listHtml.'</ul>', $closeLabel);
 }
 
 /**

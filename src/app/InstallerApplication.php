@@ -528,8 +528,8 @@ final class InstallerApplication
 
             $installedPlugins = resolveInstalledPackages($targetDirFinal, 'plugin');
             $installedDataPackages = resolveInstalledPackages($targetDirFinal, 'data');
-            $installedPluginHtml = renderInstalledPackageListHtml($installedPlugins, $langForGlobal);
-            $installedDataHtml = renderInstalledPackageListHtml($installedDataPackages, $langForGlobal);
+            $installedPluginHtml = renderInstalledPackageListHtml($installedPlugins, $langForGlobal, 'modal-installed-plugins', resolveLangKey('installed_plugins', $langForGlobal));
+            $installedDataHtml = renderInstalledPackageListHtml($installedDataPackages, $langForGlobal, 'modal-installed-data', resolveLangKey('installed_data', $langForGlobal));
 
             $envPath = rtrim($targetDirStr, '/').'/.env.local';
             if ('installer' === ($_GET['view'] ?? null)) {
