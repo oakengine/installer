@@ -222,6 +222,8 @@ final class InstallerApplication
             $projectApiToken = isset($config['project_api_token']) && is_scalar($config['project_api_token'])
                 ? trim((string) $config['project_api_token'])
                 : '';
+            $dashboardState = resolveDashboardState($_GET['view'] ?? null, $_GET['itab'] ?? null, $_POST['view'] ?? null, $_POST['itab'] ?? null);
+            $dashboardBackHref = buildDashboardViewHref($dashboardState['view'], $dashboardState['itab']);
             $runnerClient = new ProjectPackageApiClient($projectApiUrl, 'runner', $installUuid, $projectApiToken);
             $pluginClient = new ProjectPackageApiClient($projectApiUrl, 'plugin', $installUuid, $projectApiToken);
             $dataClient = new ProjectPackageApiClient($projectApiUrl, 'data', $installUuid, $projectApiToken);
@@ -243,8 +245,7 @@ final class InstallerApplication
                     $content = '<div class="success">'.resolveLangKey('config_saved', $langForGlobal).'<br>';
                     $content .= '<strong>'.resolveLangKey('mode', $langForGlobal).':</strong> '.htmlspecialchars($newEnv).'<br>';
                     $content .= '<strong>'.resolveLangKey('database', $langForGlobal).':</strong> '.htmlspecialchars($newDb).'</div>';
-                    $content .= '<a href="?" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
-                    echo renderPage(resolveLangKey('configuration', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''));
+                    echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                     exit;
                 }
                 $error = 'Error saving .env.local';
@@ -260,8 +261,7 @@ final class InstallerApplication
                 if (saveEnvLocalContent($envPath, $newContent)) {
                     $installUuidManager->ensureEnvLocalInstallUuid($envPath);
                     $content = '<div class="success">'.resolveLangKey('env_file_saved', $langForGlobal).'</div>';
-                    $content .= '<a href="?" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
-                    echo renderPage(resolveLangKey('configuration', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''));
+                    echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                     exit;
                 }
 
@@ -278,8 +278,7 @@ final class InstallerApplication
                 if (updateInstallUuidInEnvLocal($installUuidManager, $envPath, $newInstallUuid)) {
                     $content = '<div class="success">'.resolveLangKey('install_uuid_saved', $langForGlobal).'<br>';
                     $content .= '<strong>'.resolveLangKey('install_uuid', $langForGlobal).':</strong> '.htmlspecialchars(strtolower(trim($newInstallUuid))).'</div>';
-                    $content .= '<a href="?" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
-                    echo renderPage(resolveLangKey('configuration', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''));
+                    echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                     exit;
                 }
 
@@ -292,8 +291,7 @@ final class InstallerApplication
 
                 $content = '<div class="success">'.resolveLangKey('install_uuid_saved', $langForGlobal).'<br>';
                 $content .= '<strong>'.resolveLangKey('install_uuid', $langForGlobal).':</strong> '.htmlspecialchars($newInstallUuid).'</div>';
-                $content .= '<a href="?" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
-                echo renderPage(resolveLangKey('configuration', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''));
+                echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                 exit;
             }
 
@@ -311,8 +309,7 @@ final class InstallerApplication
                 if (addDatabaseToEnvLocal($envPath, $dbId, $dbUrl)) {
                     $installUuidManager->ensureEnvLocalInstallUuid($envPath);
                     $content = '<div class="success">'.resolveLangKey('database_added', $langForGlobal, ['id' => htmlspecialchars($dbId)]).'</div>';
-                    $content .= '<a href="?" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
-                    echo renderPage(resolveLangKey('configuration', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''));
+                    echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                     exit;
                 }
 
@@ -329,8 +326,7 @@ final class InstallerApplication
                 if (removeDatabaseFromEnvLocal($envPath, $removeDbId)) {
                     $installUuidManager->ensureEnvLocalInstallUuid($envPath);
                     $content = '<div class="success">'.resolveLangKey('database_removed', $langForGlobal, ['id' => htmlspecialchars($removeDbId)]).'</div>';
-                    $content .= '<a href="?" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
-                    echo renderPage(resolveLangKey('configuration', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''));
+                    echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                     exit;
                 }
 
@@ -346,8 +342,7 @@ final class InstallerApplication
                 $content = '<div class="success">'.resolveLangKey('migrations_run_successfully', $langForGlobal).'</div>';
                 $content .= '<h3>'.resolveLangKey('migrations_output', $langForGlobal).'</h3>';
                 $content .= '<pre style="background:#f6f8fa; padding:15px; border-radius:6px; font-size:0.9em; white-space:pre-wrap;">'.htmlspecialchars(trim((string) $output)).'</pre>';
-                $content .= '<a href="?" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
-                echo renderPage(resolveLangKey('run_migrations', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''));
+                echo renderPage(resolveLangKey('run_migrations', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                 exit;
             }
 
@@ -363,8 +358,7 @@ final class InstallerApplication
                     $content .= '<br><small>'.resolveLangKey('errors', $langForGlobal).': '.$errorsCount.'</small>';
                 }
                 $content .= '</div>';
-                $content .= '<a href="?" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
-                echo renderPage(resolveLangKey('cache_cleared', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''));
+                echo renderPage(resolveLangKey('cache_cleared', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                 exit;
             }
 
@@ -410,7 +404,7 @@ final class InstallerApplication
 
                 $content = '<div class="success">'.resolveLangKey('updater_updated', $langForGlobal, ['tag' => htmlspecialchars($tag)]).'<br>';
                 $content .= resolveLangKey('files_updated', $langForGlobal, ['count' => $updatedCount]).'</div>';
-                $content .= '<a href="?" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
+                $content .= '<a href="'.htmlspecialchars((string) $dashboardBackHref).'" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
 
                 if ($updatedCount > 0) {
                     $content .= '<h3>'.resolveLangKey('updated_files', $langForGlobal).'</h3><ul class="file-list">';
@@ -423,7 +417,7 @@ final class InstallerApplication
                 }
 
                 $envPath = rtrim($targetDirFinal, '/').'/.env.local';
-                echo renderPage(resolveLangKey('title', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''));
+                echo renderPage(resolveLangKey('title', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view']);
                 exit;
             }
 
@@ -515,7 +509,7 @@ final class InstallerApplication
                     $content .= '</ul></div>';
                 }
 
-                $content .= '<a href="?" class="back-link">'.htmlspecialchars((string) resolveLangKey('back', $langForGlobal)).'</a><h3>'.htmlspecialchars((string) resolveLangKey('installed_files', $langForGlobal)).'</h3><ul class="file-list">';
+                $content .= '<a href="'.htmlspecialchars((string) $dashboardBackHref).'" class="back-link">'.htmlspecialchars((string) resolveLangKey('back', $langForGlobal)).'</a><h3>'.htmlspecialchars((string) resolveLangKey('installed_files', $langForGlobal)).'</h3><ul class="file-list">';
                 /** @var array<string> $extractedFiles */
                 $extractedFiles = $extractZipResult['extracted'];
                 $slice = array_slice($extractedFiles, 0, 50);
@@ -526,7 +520,7 @@ final class InstallerApplication
                     $content .= '<li><em>'.resolveLangKey('and_more', $langForGlobal, ['count' => ($extractedCount - 50)]).'</em></li>';
                 }
                 $content .= '</ul>';
-                echo renderPage(resolveLangKey('installation_successful', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''));
+                echo renderPage(resolveLangKey('installation_successful', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view']);
                 exit;
             }
 

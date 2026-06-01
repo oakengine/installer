@@ -24,12 +24,59 @@ function resolveInstallerTab(mixed $raw): string
 }
 
 /**
+ * Resolves the dashboard state from request values, preferring explicit POST state
+ * so follow-up pages after form submissions keep the originating section selected.
+ *
+ * @return array{view: string, itab: string|null}
+ */
+function resolveDashboardState(mixed $getView, mixed $getItab = null, mixed $postView = null, mixed $postItab = null): array
+{
+    $viewSource = is_string($postView) ? $postView : $getView;
+    $view = resolveDashboardView($viewSource);
+    if ('installer' !== $view) {
+        return ['view' => $view, 'itab' => null];
+    }
+
+    $itabSource = is_string($postItab) ? $postItab : $getItab;
+
+    return ['view' => $view, 'itab' => resolveInstallerTab($itabSource)];
+}
+
+function buildDashboardViewHref(string $view, ?string $itab = null): string
+{
+    if ('home' === $view) {
+        return '?';
+    }
+
+    $params = ['view' => $view];
+    if ('installer' === $view) {
+        $params['itab'] = resolveInstallerTab($itab);
+    }
+
+    return '?'.http_build_query($params);
+}
+
+function renderDashboardStateInputs(string $view, ?string $itab = null): string
+{
+    if ('home' === $view) {
+        return '';
+    }
+
+    $inputs = '<input type="hidden" name="view" value="'.htmlspecialchars($view).'">';
+    if ('installer' === $view) {
+        $inputs .= '<input type="hidden" name="itab" value="'.htmlspecialchars(resolveInstallerTab($itab)).'">';
+    }
+
+    return $inputs;
+}
+
+/**
  * Renders a custom, accessible dropdown control that replaces native <select>.
  * The selected value is submitted through a hidden input named $name.
  *
  * @param list<array{value: string, label: string}> $options
  */
-function renderDropdown(string $name, array $options, string $selectedValue = '', bool $autoSubmit = false, string $extraClass = ''): string
+function renderDropdown(string $name, array $options, string $selectedValue = '', bool $autoSubmit = false, string $extraClass = '', bool $disabled = false): string
 {
     $selectedLabel = '';
     $hasSelected = false;
@@ -47,18 +94,25 @@ function renderDropdown(string $name, array $options, string $selectedValue = ''
         $selectedLabel = $options[0]['label'];
     }
 
+    if ([] === $options) {
+        $selectedValue = '';
+        $selectedLabel = '-';
+        $disabled = true;
+    }
+
     $optionsHtml = '';
     foreach ($options as $option) {
         $isSelected = $option['value'] === $selectedValue;
         $optionsHtml .= '<li class="dropdown-option'.($isSelected ? ' is-selected' : '').'" role="option" data-value="'.htmlspecialchars($option['value']).'" aria-selected="'.($isSelected ? 'true' : 'false').'">'.htmlspecialchars($option['label']).'</li>';
     }
 
-    $classAttr = htmlspecialchars(trim('dropdown '.$extraClass));
-    $autoAttr = $autoSubmit ? ' data-autosubmit="1"' : '';
+    $classAttr = htmlspecialchars(trim('dropdown '.$extraClass.($disabled ? ' is-disabled' : '')));
+    $autoAttr = ($autoSubmit && !$disabled) ? ' data-autosubmit="1"' : '';
+    $disabledAttr = $disabled ? ' disabled aria-disabled="true"' : '';
 
     return '<div class="'.$classAttr.'"'.$autoAttr.'>'
         .'<input type="hidden" name="'.htmlspecialchars($name).'" value="'.htmlspecialchars($selectedValue).'">'
-        .'<button type="button" class="dropdown-toggle" aria-haspopup="listbox" aria-expanded="false">'
+        .'<button type="button" class="dropdown-toggle" aria-haspopup="listbox" aria-expanded="false"'.$disabledAttr.'>'
         .'<span class="dropdown-label">'.htmlspecialchars($selectedLabel).'</span>'
         .'<svg class="dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'
         .'</button>'
@@ -138,9 +192,17 @@ function renderWhitelistValue(array $items, string $countLabel, string $modalTit
     }
 
     $modalId = 'modal-whitelist';
+    $countText = trim($countLabel);
+    $countPrefix = (string) count($items);
+    if (str_starts_with($countText, $countPrefix)) {
+        $trimmedCountText = ltrim(substr($countText, strlen($countPrefix)), " \t\n\r\0\x0B:.-");
+        if ('' !== $trimmedCountText) {
+            $countText = $trimmedCountText;
+        }
+    }
     $trigger = '<button type="button" class="status-count" data-modal-open="'.$modalId.'">'
         .'<span class="status-count-num">'.count($items).'</span>'
-        .'<span class="status-count-text">'.htmlspecialchars($countLabel).'</span>'
+        .'<span class="status-count-text">'.htmlspecialchars($countText).'</span>'
         .'</button>';
 
     $listHtml = '';
@@ -311,8 +373,15 @@ HTML;
     exit;
 }
 
-function renderPage(string $title, string $content, ?string $error = null, ?string $envPath = null, bool $showLogout = false, string $activeView = ''): string
-{
+function renderPage(
+    string $title,
+    string $content,
+    ?string $error = null,
+    ?string $envPath = null,
+    bool $showLogout = false,
+    string $activeView = '',
+    ?string $dashboardNotice = null,
+): string {
     global $lang;
     /** @var array<string, string> $langForPage */
     $langForPage = (isset($lang) && is_array($lang)) ? $lang : [];
@@ -339,14 +408,8 @@ function renderPage(string $title, string $content, ?string $error = null, ?stri
 
     $langDropdown = renderDropdown('lang', $langDropdownOptions, $sessionLangVal, true, 'dropdown-lang');
 
-    $langStateInputs = '';
-    $rawView = (isset($_GET['view']) && is_string($_GET['view'])) ? $_GET['view'] : '';
-    if (in_array($rawView, ['updates', 'environment', 'databases', 'install-uuid', 'installer'], true)) {
-        $langStateInputs .= '<input type="hidden" name="view" value="'.htmlspecialchars($rawView).'">';
-        if ('installer' === $rawView && isset($_GET['itab']) && 'tags' === $_GET['itab']) {
-            $langStateInputs .= '<input type="hidden" name="itab" value="tags">';
-        }
-    }
+    $requestDashboardState = resolveDashboardState($_GET['view'] ?? null, $_GET['itab'] ?? null, $_POST['view'] ?? null, $_POST['itab'] ?? null);
+    $langStateInputs = renderDashboardStateInputs($requestDashboardState['view'], $requestDashboardState['itab']);
 
     $langSwitcherHtml = <<<HTML
 <div class="lang-switcher">
@@ -388,7 +451,8 @@ HTML;
             }
         }
 
-        $databaseDropdown = renderDropdown('database', $databaseOptions, $activeDbValue, false, 'dropdown-db');
+        $hasDatabases = [] !== $databaseOptions;
+        $databaseDropdown = renderDropdown('database', $databaseOptions, $activeDbValue, false, 'dropdown-db', !$hasDatabases);
 
         $text_mode = resolveLangKey('mode', $langForTemplate);
         $text_database = resolveLangKey('database', $langForTemplate);
@@ -430,18 +494,19 @@ HTML;
             $removeDbOptions[] = ['value' => $dbIdStr, 'label' => $dbIdStr.((!empty($db['active'])) ? ' (active)' : '')];
         }
 
-        if ([] === $removeDbOptions) {
-            $removeDbOptions[] = ['value' => '', 'label' => '-'];
-        }
-
-        $removeDbDropdown = renderDropdown('remove_db_id', $removeDbOptions, '', false, 'dropdown-db');
+        $canRemoveDatabases = [] !== $removeDbOptions;
+        $removeDbDropdown = renderDropdown('remove_db_id', $removeDbOptions, '', false, 'dropdown-db', !$canRemoveDatabases);
+        $databaseActionDisabled = $hasDatabases ? '' : 'disabled';
+        $removeDatabaseActionDisabled = $canRemoveDatabases ? '' : 'disabled';
 
         $envRawContent = htmlspecialchars((string) $envConfig['raw_content']);
         $currentInstallUuid = htmlspecialchars((string) ($envConfig['install_uuid'] ?? ''));
+        $dashboardStateInputs = renderDashboardStateInputs($activeView, $requestDashboardState['itab']);
 
         $envConfigHtml = <<<HTML
 <div class="env-config">
 <form method="post" class="env-form" style="margin-bottom: 20px;">
+    {$dashboardStateInputs}
     <div class="env-row">
         <label>{$text_mode}:</label>
         {$appEnvDropdown}
@@ -451,6 +516,7 @@ HTML;
 
 <h3 style="margin-bottom:10px;">{$text_env_editor}</h3>
 <form method="post">
+    {$dashboardStateInputs}
     <label style="display:block; margin-bottom:6px; font-weight:500; color:#586069;">{$text_env_content}:</label>
     <textarea name="env_content" class="env-textarea">{$envRawContent}</textarea>
     <button type="submit" name="save_env_content" class="btn btn-secondary btn-small" style="margin-top:8px;">{$text_save_env_file}</button>
@@ -466,6 +532,7 @@ HTML;
         <div>{$migrationsStatusHtml}</div>
     </div>
     <form method="post" onsubmit="return confirm('{$confirm_run_migrations}')">
+        {$dashboardStateInputs}
         <button type="submit" name="run_migrations" class="btn btn-secondary" {$migrationsDisabled}>{$text_run_migrations}</button>
     </form>
 </div>
@@ -473,34 +540,37 @@ HTML;
 <hr style="margin:15px 0; border:none; border-top:1px solid #d1d5db;">
 
 <form method="post" class="env-form" style="margin-bottom: 20px;">
+    {$dashboardStateInputs}
     <div class="env-row">
         <label>{$text_database}:</label>
         {$databaseDropdown}
     </div>
-    <button type="submit" name="save_env" class="btn btn-secondary btn-small">{$text_save}</button>
+    <button type="submit" name="save_env" class="btn btn-secondary btn-small" {$databaseActionDisabled}>{$text_save}</button>
 </form>
 
 <hr style="margin:15px 0; border:none; border-top:1px solid #d1d5db;">
 
 <h3 style="margin-bottom:10px;">{$text_db_manager}</h3>
-<form method="post" class="env-form" style="margin-bottom:8px;">
-    <div class="env-row">
+<form method="post" class="env-form env-form--stack" style="margin-bottom:8px;">
+    {$dashboardStateInputs}
+    <div class="env-row env-row--stack env-row--wide">
         <label>{$text_db_id}:</label>
-        <input type="text" name="db_id" class="env-input" required>
+        <input type="text" name="db_id" class="env-input env-input--wide" required>
     </div>
-    <div class="env-row" style="flex:1; min-width:300px;">
+    <div class="env-row env-row--stack env-row--wide">
         <label>{$text_db_url}:</label>
-        <input type="text" name="db_url" class="env-input" style="width:100%;" required>
+        <input type="text" name="db_url" class="env-input env-input--wide" required>
     </div>
     <button type="submit" name="add_database" class="btn btn-secondary btn-small">{$text_add_database}</button>
 </form>
 
 <form method="post" class="env-form">
+    {$dashboardStateInputs}
     <div class="env-row">
         <label>{$text_select_database}:</label>
         {$removeDbDropdown}
     </div>
-    <button type="submit" name="remove_database" class="btn btn-small">{$text_remove_database}</button>
+    <button type="submit" name="remove_database" class="btn btn-small" {$removeDatabaseActionDisabled}>{$text_remove_database}</button>
 </form>
 </div>
 HTML;
@@ -509,14 +579,16 @@ HTML;
 <div class="env-config">
 <h3 style="margin-bottom:10px;">{$text_install_uuid}</h3>
 <p style="margin-bottom:12px; color:#586069;">{$text_install_uuid_help}</p>
-<form method="post" class="env-form" style="margin-bottom: 12px;">
-    <div class="env-row" style="flex:1; min-width:360px;">
+<form method="post" class="env-form env-form--inline" style="margin-bottom: 12px;">
+    {$dashboardStateInputs}
+    <div class="env-row env-row--inline env-row--grow">
         <label>{$text_install_uuid}:</label>
-        <input type="text" name="install_uuid" value="{$currentInstallUuid}" class="env-input" style="width:100%;" required pattern="[0-9a-fA-F-]{36}">
+        <input type="text" name="install_uuid" value="{$currentInstallUuid}" class="env-input env-input--uuid" required pattern="[0-9a-fA-F-]{36}">
     </div>
     <button type="submit" name="save_install_uuid" class="btn btn-secondary btn-small">{$text_save}</button>
 </form>
 <form method="post">
+    {$dashboardStateInputs}
     <button type="submit" name="regenerate_install_uuid" class="btn btn-small">{$text_regenerate_install_uuid}</button>
 </form>
 </div>
@@ -547,6 +619,10 @@ HTML;
         } elseif ('install-uuid' === $activeView) {
             $mainSection = $installUuidHtml;
         }
+
+        if (null !== $dashboardNotice && '' !== $dashboardNotice && 'home' !== $activeView && '' !== $activeView) {
+            $mainSection = $dashboardNotice.$mainSection;
+        }
     }
 
     $dropdownScript = <<<'HTML'
@@ -559,6 +635,7 @@ HTML;
         var input = dd.querySelector('input[type=hidden]');
         var options = Array.prototype.slice.call(dd.querySelectorAll('.dropdown-option'));
         if(!toggle || !menu || !input){ return; }
+        if(toggle.disabled || options.length === 0){ return; }
         function open(){
             closeAll(dd);
             dd.classList.add('is-open');
@@ -967,8 +1044,15 @@ HTML;
     .login-form .btn { width: 100%; padding: 12px; }
     .env-config { background: var(--surface-muted); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius); margin-bottom: 22px; }
     .env-form { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .env-form--stack { align-items: stretch; }
+    .env-form--inline { flex-wrap: nowrap; align-items: center; }
     .env-row { display: flex; align-items: center; gap: 8px; }
+    .env-row--stack { flex-direction: column; align-items: stretch; gap: 6px; width: min(100%, 420px); }
+    .env-row--inline { flex-direction: row; align-items: center; min-width: 0; }
+    .env-row--grow { flex: 1 1 auto; }
+    .env-row--wide { width: min(100%, 720px); }
     .env-row label { font-weight: 600; color: var(--text-muted); font-size: 0.88rem; }
+    .env-row--inline label { white-space: nowrap; }
     .env-select, .env-input {
         padding: 8px 12px;
         border: 1px solid var(--border-strong);
@@ -980,6 +1064,9 @@ HTML;
         min-width: 110px;
     }
     .env-input { min-width: 130px; }
+    .env-input--wide { width: 100%; }
+    .env-input--uuid { flex: 1 1 auto; width: 100%; min-width: 0; }
+    .env-form--inline .btn { margin-left: auto; }
     .env-select:focus, .env-input:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
     .env-textarea { width: 100%; min-height: 200px; padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius); font-family: var(--font-mono); font-size: 0.86rem; background: var(--surface); color: var(--text); resize: vertical; }
     .env-textarea:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
@@ -1013,6 +1100,7 @@ HTML;
         cursor: pointer;
         transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
+    .dropdown-toggle:disabled { opacity: 0.55; cursor: not-allowed; }
     .dropdown-toggle:hover { border-color: var(--brand); }
     .dropdown.is-open .dropdown-toggle, .dropdown-toggle:focus-visible { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
     .dropdown-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

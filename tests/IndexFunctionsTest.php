@@ -248,7 +248,8 @@ final class IndexFunctionsTest extends TestCase
 
         $this->assertStringContainsString('data-modal-open="modal-whitelist"', $html);
         $this->assertStringContainsString('<span class="status-count-num">3</span>', $html);
-        $this->assertStringContainsString('3 entries', $html);
+        $this->assertStringContainsString('<span class="status-count-text">entries</span>', $html);
+        $this->assertStringNotContainsString('<span class="status-count-text">3 entries</span>', $html);
         $this->assertStringContainsString('id="modal-whitelist"', $html);
         $this->assertStringContainsString('<li><code>config/app.php</code></li>', $html);
         $this->assertStringContainsString('<ul class="modal-list">', $html);
@@ -312,6 +313,31 @@ final class IndexFunctionsTest extends TestCase
         $this->assertStringContainsString('data-autosubmit="1"', $html);
         $this->assertStringContainsString('<input type="hidden" name="lang" value="en">', $html);
         $this->assertStringContainsString('<span class="dropdown-label">EN</span>', $html);
+    }
+
+    public function testRenderDropdownShowsDisabledPlaceholderWhenEmpty(): void
+    {
+        $html = renderDropdown('database', [], '', false, 'dropdown-db');
+
+        $this->assertStringContainsString('class="dropdown dropdown-db is-disabled"', $html);
+        $this->assertStringContainsString('<input type="hidden" name="database" value="">', $html);
+        $this->assertStringContainsString('<button type="button" class="dropdown-toggle" aria-haspopup="listbox" aria-expanded="false" disabled aria-disabled="true">', $html);
+        $this->assertStringContainsString('<span class="dropdown-label">-</span>', $html);
+        $this->assertStringNotContainsString('data-autosubmit="1"', $html);
+    }
+
+    public function testAllLanguageFilesContainEnglishKeys(): void
+    {
+        /** @var array<string, string> $english */
+        $english = require __DIR__.'/../src/lang/en.php';
+
+        foreach (glob(__DIR__.'/../src/lang/*.php') as $file) {
+            /** @var array<string, string> $translations */
+            $translations = require $file;
+            $missingKeys = array_keys(array_diff_key($english, $translations));
+
+            $this->assertSame([], $missingKeys, basename($file).' is missing translation keys.');
+        }
     }
 
     public function testComparePackageVersionsDesc(): void
@@ -1170,12 +1196,18 @@ ENV;
         file_put_contents($targetDir.'/migrations/Version1.php', '<?php');
         $this->createConsoleScript($targetDir, 'New Migrations: 0');
 
-        $html = renderPage('Installer', '<p>Welcome</p>', 'Boom', $envPath, true, 'install-uuid');
+        $html = renderPage('Installer', '<p>Welcome</p>', 'Boom', $envPath, true, 'install-uuid', '<div class="success">Saved</div>');
 
         $this->assertStringContainsString('Boom', $html);
+        $this->assertStringContainsString('<div class="success">Saved</div>', $html);
         $this->assertStringContainsString('018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1', $html);
+        $this->assertStringContainsString('class="env-form env-form--inline"', $html);
+        $this->assertStringContainsString('class="env-row env-row--inline env-row--grow"', $html);
+        $this->assertStringContainsString('class="env-input env-input--uuid"', $html);
+        $this->assertStringContainsString('<input type="hidden" name="view" value="install-uuid">', $html);
         $this->assertStringContainsString('dashboard-btn active" href="?view=install-uuid"', $html);
         $this->assertStringContainsString('Logout', $html);
+        $this->assertStringNotContainsString('<p>Welcome</p>', $html);
         $this->assertStringNotContainsString('showDashboardSection', $html);
     }
 
@@ -1213,6 +1245,28 @@ ENV;
 
         $this->assertStringNotContainsString('<p>ignored</p>', $html);
         $this->assertStringContainsString('dashboard-btn active" href="?view=databases"', $html);
+        $this->assertStringContainsString('class="env-form env-form--stack"', $html);
+        $this->assertStringContainsString('class="env-row env-row--stack env-row--wide"', $html);
+        $this->assertStringContainsString('class="env-input env-input--wide"', $html);
+        $this->assertStringContainsString('<input type="hidden" name="view" value="databases">', $html);
+    }
+
+    public function testRenderPageDisablesDatabaseActionsWhenNoDatabasesExist(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $GLOBALS['availableLangs'] = ['en', 'de'];
+        $_SESSION['lang'] = 'en';
+
+        $targetDir = $this->createTempDirectory();
+        $envPath = $targetDir.'/.env.local';
+        file_put_contents($envPath, "APP_ENV=prod\n");
+
+        $html = renderPage('Installer', '<p>ignored</p>', null, $envPath, false, 'databases');
+
+        $this->assertStringContainsString('<span class="dropdown-label">-</span>', $html);
+        $this->assertStringContainsString('class="dropdown dropdown-db is-disabled"', $html);
+        $this->assertStringContainsString('name="save_env" class="btn btn-secondary btn-small" disabled', $html);
+        $this->assertStringContainsString('name="remove_database" class="btn btn-small" disabled', $html);
     }
 
     public function testRenderPageWithoutEnvPathHasNoDashboardNav(): void
@@ -1283,6 +1337,43 @@ ENV;
         $this->assertSame('branches', resolveInstallerTab('branches'));
         $this->assertSame('branches', resolveInstallerTab('bogus'));
         $this->assertSame('tags', resolveInstallerTab('tags'));
+    }
+
+    public function testResolveDashboardStatePrefersPostedState(): void
+    {
+        $this->assertSame(
+            ['view' => 'environment', 'itab' => null],
+            resolveDashboardState('home', null, 'environment', null)
+        );
+        $this->assertSame(
+            ['view' => 'installer', 'itab' => 'tags'],
+            resolveDashboardState('home', 'branches', 'installer', 'tags')
+        );
+        $this->assertSame(
+            ['view' => 'home', 'itab' => null],
+            resolveDashboardState('bogus', 'tags', null, null)
+        );
+    }
+
+    public function testBuildDashboardViewHrefBuildsStableLinks(): void
+    {
+        $this->assertSame('?', buildDashboardViewHref('home'));
+        $this->assertSame('?view=environment', buildDashboardViewHref('environment'));
+        $this->assertSame('?view=installer&itab=tags', buildDashboardViewHref('installer', 'tags'));
+        $this->assertSame('?view=installer&itab=branches', buildDashboardViewHref('installer'));
+    }
+
+    public function testRenderDashboardStateInputsOmitsHomeAndPreservesInstallerTab(): void
+    {
+        $this->assertSame('', renderDashboardStateInputs('home'));
+        $this->assertSame(
+            '<input type="hidden" name="view" value="environment">',
+            renderDashboardStateInputs('environment')
+        );
+        $this->assertSame(
+            '<input type="hidden" name="view" value="installer"><input type="hidden" name="itab" value="tags">',
+            renderDashboardStateInputs('installer', 'tags')
+        );
     }
 
     private function createTempDirectory(): string
