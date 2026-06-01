@@ -105,12 +105,6 @@ if (PHP_SAPI === 'cli') {
 
 $updateDir = __DIR__ . '/update';
 
-// Check if already extracted
-if (is_dir($updateDir) && file_exists($updateDir . '/index.php')) {
-    header('Location: ./update/');
-    exit;
-}
-
 // Decode archive
 $zipData = base64_decode($archive, true);
 if ($zipData === false) {
@@ -132,7 +126,14 @@ if (!is_dir($updateDir)) {
     mkdir($updateDir, 0755, true);
 }
 
-// Extract
+// Backup config.php if it exists (preserve user settings)
+$configFile = $updateDir . '/config.php';
+$configBackup = null;
+if (file_exists($configFile)) {
+    $configBackup = file_get_contents($configFile);
+}
+
+// Extract (always, to support updates)
 $zip = new ZipArchive();
 if ($zip->open($tmpFile) !== true) {
     @unlink($tmpFile);
@@ -154,9 +155,15 @@ $zip->close();
 
 // Rename config.example.php to config.php
 $configExample = $updateDir . '/config.example.php';
-$configFile = $updateDir . '/config.php';
-if (file_exists($configExample) && !file_exists($configFile)) {
-    rename($configExample, $configFile);
+if (file_exists($configExample)) {
+    if (null !== $configBackup) {
+        // Restore existing config.php (preserve user settings)
+        file_put_contents($configFile, $configBackup);
+        @unlink($configExample);
+    } elseif (!file_exists($configFile)) {
+        // First install: rename example to config.php
+        rename($configExample, $configFile);
+    }
 }
 
 // Set permissions on extracted files
