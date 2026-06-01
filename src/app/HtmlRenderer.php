@@ -175,6 +175,36 @@ function renderModal(string $modalId, string $title, string $bodyHtml, string $c
         .'</div></div>';
 }
 
+function renderConfirmAttributes(string $title, string $message, string $submitLabel): string
+{
+    return ' data-confirm-title="'.htmlspecialchars($title).'"'
+        .' data-confirm-message="'.htmlspecialchars($message).'"'
+        .' data-confirm-submit-label="'.htmlspecialchars($submitLabel).'"';
+}
+
+function renderConfirmationModal(string $modalId, string $closeLabel): string
+{
+    $idAttr = htmlspecialchars($modalId);
+    $closeLabelEscaped = htmlspecialchars($closeLabel);
+
+    return '<div class="modal modal-confirm" id="'.$idAttr.'" role="dialog" aria-modal="true" aria-hidden="true">'
+        .'<div class="modal-backdrop" data-modal-close="'.$idAttr.'"></div>'
+        .'<div class="modal-dialog" role="document">'
+        .'<div class="modal-header">'
+        .'<h3 class="modal-title" data-confirm-title></h3>'
+        .'<button type="button" class="modal-close" data-modal-close="'.$idAttr.'" aria-label="'.$closeLabelEscaped.'">&times;</button>'
+        .'</div>'
+        .'<div class="modal-body">'
+        .'<p class="confirm-message" data-confirm-message></p>'
+        .'<div class="modal-actions">'
+        .'<button type="button" class="btn btn-secondary" data-modal-close="'.$idAttr.'">'.$closeLabelEscaped.'</button>'
+        .'<button type="button" class="btn" data-confirm-submit></button>'
+        .'</div>'
+        .'</div>'
+        .'</div>'
+        .'</div>';
+}
+
 /**
  * Renders a list of whitelist entries. A single entry is shown as a chip;
  * multiple entries collapse into a count badge that opens a details modal.
@@ -388,6 +418,7 @@ function renderPage(
 
     $errorHtml = (null !== $error && '' !== $error) ? '<div class="error">'.htmlspecialchars((string) $error).'</div>' : '';
     $text_logout = resolveLangKey('logout', $langForPage);
+    $text_close = resolveLangKey('close', $langForPage);
     $logoutButton = $showLogout ? '<form method="get" class="logout-form"><input type="hidden" name="logout" value="1"><button type="submit" class="btn btn-secondary btn-small">'.htmlspecialchars($text_logout).'</button></form>' : '';
 
     $text_language = resolveLangKey('language', $langForPage);
@@ -477,6 +508,7 @@ HTML;
         $text_install_uuid_help = resolveLangKey('install_uuid_help', $langForTemplate);
         $text_regenerate_install_uuid = resolveLangKey('regenerate_install_uuid', $langForTemplate);
         $text_install_uuid_saved = resolveLangKey('install_uuid_saved', $langForTemplate);
+        $runMigrationsConfirmAttr = renderConfirmAttributes($text_run_migrations, $confirm_run_migrations, $text_run_migrations);
 
         $migrationsData = getMigrationsStatus(dirname($envPath));
         /** @var string $migrationsStatusHtml */
@@ -531,7 +563,7 @@ HTML;
         <h3 style="margin-bottom:5px;">{$text_migrations_status}</h3>
         <div>{$migrationsStatusHtml}</div>
     </div>
-    <form method="post" onsubmit="return confirm('{$confirm_run_migrations}')">
+    <form method="post"{$runMigrationsConfirmAttr}>
         {$dashboardStateInputs}
         <button type="submit" name="run_migrations" class="btn btn-secondary" {$migrationsDisabled}>{$text_run_migrations}</button>
     </form>
@@ -625,6 +657,8 @@ HTML;
         }
     }
 
+    $confirmationModal = renderConfirmationModal('modal-confirm-action', $text_close);
+
     $dropdownScript = <<<'HTML'
 <script>
 (function(){
@@ -714,54 +748,94 @@ HTML;
 </script>
 HTML;
 
-    $modalScript = <<<'HTML'
-<script>
-(function(){
-    function openModal(modal){
-        modal.classList.add('is-open');
-        modal.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('modal-open');
-        var closeBtn = modal.querySelector('.modal-close');
-        if(closeBtn){ closeBtn.focus(); }
-    }
-    function closeModal(modal){
-        modal.classList.remove('is-open');
-        modal.setAttribute('aria-hidden', 'true');
-        if(!document.querySelector('.modal.is-open')){ document.body.classList.remove('modal-open'); }
-    }
-    function initModals(){
-        Array.prototype.slice.call(document.querySelectorAll('.modal')).forEach(function(modal){
-            document.body.appendChild(modal);
-        });
-        document.addEventListener('click', function(e){
-            var opener = e.target.closest ? e.target.closest('[data-modal-open]') : null;
-            if(opener){
+    $modalScript = <<<'HTML_WRAP'
+    <script>
+    (function(){
+        var pendingConfirmForm = null;
+        function openModal(modal){
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            var focusTarget = modal.querySelector('[data-confirm-submit]') || modal.querySelector('.modal-close');
+            if(focusTarget){ focusTarget.focus(); }
+        }
+        function closeModal(modal){
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            if(modal.id === 'modal-confirm-action'){ pendingConfirmForm = null; }
+            if(!document.querySelector('.modal.is-open')){ document.body.classList.remove('modal-open'); }
+        }
+        function openConfirmModal(form){
+            var modal = document.getElementById('modal-confirm-action');
+            if(!modal){ return; }
+            pendingConfirmForm = form;
+            var title = form.getAttribute('data-confirm-title') || '';
+            var message = form.getAttribute('data-confirm-message') || '';
+            var submitLabel = form.getAttribute('data-confirm-submit-label') || '';
+            var titleNode = modal.querySelector('[data-confirm-title]');
+            var messageNode = modal.querySelector('[data-confirm-message]');
+            var submitButton = modal.querySelector('[data-confirm-submit]');
+            if(titleNode){ titleNode.textContent = title; }
+            if(messageNode){ messageNode.textContent = message; }
+            if(submitButton){ submitButton.textContent = submitLabel; }
+            openModal(modal);
+        }
+        function initModals(){
+            Array.prototype.slice.call(document.querySelectorAll('.modal')).forEach(function(modal){
+                document.body.appendChild(modal);
+            });
+            document.addEventListener('click', function(e){
+                var opener = e.target.closest ? e.target.closest('[data-modal-open]') : null;
+                if(opener){
+                    e.preventDefault();
+                    var target = document.getElementById(opener.getAttribute('data-modal-open'));
+                    if(target){ openModal(target); }
+                    return;
+                }
+                var closer = e.target.closest ? e.target.closest('[data-modal-close]') : null;
+                if(closer){
+                    e.preventDefault();
+                    var modal = document.getElementById(closer.getAttribute('data-modal-close'));
+                    if(modal){ closeModal(modal); }
+                }
+            });
+            document.addEventListener('submit', function(e){
+                var form = e.target;
+                if(!form || !form.matches || !form.matches('form[data-confirm-message]')){ return; }
+                if(form.dataset.confirmApproved === '1'){
+                    delete form.dataset.confirmApproved;
+                    return;
+                }
                 e.preventDefault();
-                var target = document.getElementById(opener.getAttribute('data-modal-open'));
-                if(target){ openModal(target); }
-                return;
-            }
-            var closer = e.target.closest ? e.target.closest('[data-modal-close]') : null;
-            if(closer){
+                openConfirmModal(form);
+            });
+            document.addEventListener('click', function(e){
+                var confirmButton = e.target.closest ? e.target.closest('[data-confirm-submit]') : null;
+                if(!confirmButton || !pendingConfirmForm){ return; }
                 e.preventDefault();
-                var modal = document.getElementById(closer.getAttribute('data-modal-close'));
+                pendingConfirmForm.dataset.confirmApproved = '1';
+                var modal = document.getElementById('modal-confirm-action');
                 if(modal){ closeModal(modal); }
-            }
-        });
-        document.addEventListener('keydown', function(e){
-            if(e.key === 'Escape'){
-                Array.prototype.slice.call(document.querySelectorAll('.modal.is-open')).forEach(closeModal);
-            }
-        });
-    }
-    if(document.readyState === 'loading'){
-        document.addEventListener('DOMContentLoaded', initModals);
-    } else {
-        initModals();
-    }
-})();
-</script>
-HTML;
+                if(typeof HTMLFormElement !== 'undefined' && HTMLFormElement.prototype.submit){
+                    HTMLFormElement.prototype.submit.call(pendingConfirmForm);
+                    return;
+                }
+                pendingConfirmForm.submit();
+            });
+            document.addEventListener('keydown', function(e){
+                if(e.key === 'Escape'){
+                    Array.prototype.slice.call(document.querySelectorAll('.modal.is-open')).forEach(closeModal);
+                }
+            });
+        }
+        if(document.readyState === 'loading'){
+            document.addEventListener('DOMContentLoaded', initModals);
+        } else {
+            initModals();
+        }
+    })();
+    </script>
+    HTML_WRAP;
     global $lang;
     /** @var array<string, string> $langForTitle */
     $langForTitle = (isset($lang) && is_array($lang)) ? $lang : [];
@@ -1236,6 +1310,13 @@ HTML;
     }
     .modal-close:hover { background: var(--surface-muted); color: var(--text); }
     .modal-body { padding: 14px 18px 18px; overflow-y: auto; }
+    .confirm-message { color: var(--text); line-height: 1.55; margin: 0; }
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 18px;
+    }
     .modal-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
     .modal-list li { display: flex; }
     .modal-list code {
@@ -1276,6 +1357,7 @@ HTML;
 <footer>
     <a href="https://github.com/oakengine/installer" target="_blank" class="footer-link">github.com/oakengine/installer</a>
 </footer>
+{$confirmationModal}
 {$dropdownScript}
 {$modalScript}
 </body>

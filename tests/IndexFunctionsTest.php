@@ -1229,6 +1229,7 @@ ENV;
         $this->assertStringContainsString('<input type="hidden" name="view" value="install-uuid">', $html);
         $this->assertStringContainsString('dashboard-btn active" href="?view=install-uuid"', $html);
         $this->assertStringContainsString('Logout', $html);
+        $this->assertStringContainsString('id="modal-confirm-action"', $html);
         $this->assertStringNotContainsString('<p>Welcome</p>', $html);
         $this->assertStringNotContainsString('showDashboardSection', $html);
     }
@@ -1271,6 +1272,10 @@ ENV;
         $this->assertStringContainsString('class="env-row env-row--stack env-row--wide"', $html);
         $this->assertStringContainsString('class="env-input env-input--wide"', $html);
         $this->assertStringContainsString('<input type="hidden" name="view" value="databases">', $html);
+        $this->assertStringContainsString('data-confirm-title="🚀 Run migrations"', $html);
+        $this->assertStringContainsString('data-confirm-message="Are you sure you want to run database migrations?"', $html);
+        $this->assertStringContainsString('data-confirm-submit-label="🚀 Run migrations"', $html);
+        $this->assertStringNotContainsString('confirm(', $html);
     }
 
     public function testRenderPageDisablesDatabaseActionsWhenNoDatabasesExist(): void
@@ -1340,6 +1345,15 @@ ENV;
         $this->assertStringContainsString('<input type="hidden" name="itab" value="tags">', $html);
 
         unset($_GET['view'], $_GET['itab']);
+    }
+
+    public function testRenderConfirmAttributesEscapesHtml(): void
+    {
+        $attributes = renderConfirmAttributes('Install', 'Use "dangerous" version?', 'Install');
+
+        $this->assertStringContainsString('data-confirm-title="Install"', $attributes);
+        $this->assertStringContainsString('data-confirm-message="Use &quot;dangerous&quot; version?"', $attributes);
+        $this->assertStringContainsString('data-confirm-submit-label="Install"', $attributes);
     }
 
     public function testResolveDashboardViewWhitelistsValues(): void

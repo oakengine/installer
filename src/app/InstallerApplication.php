@@ -539,13 +539,18 @@ final class InstallerApplication
                 $itab = resolveInstallerTab($_GET['itab'] ?? null);
 
                 $instBranchHtml = '';
+                $installerConfirmAttr = renderConfirmAttributes(
+                    resolveLangKey('install', $langForGlobal),
+                    resolveLangKey('confirm_install_installer', $langForGlobal),
+                    resolveLangKey('install', $langForGlobal),
+                );
                 foreach ($instBranches as $branch) {
                     $bName = (isset($branch['name'])) ? (string) $branch['name'] : '';
                     $bCommit = (isset($branch['commit'])) ? (string) $branch['commit'] : '';
                     $bCommitShort = substr($bCommit, 0, 7);
                     $instBranchHtml .= '<li><span><span class="branch-name">'.htmlspecialchars($bName).'</span>'
                         .'<span class="commit-sha">'.htmlspecialchars($bCommitShort).'</span></span>';
-                    $instBranchHtml .= '<form method="post" style="display:inline" onsubmit="return confirm(\''.htmlspecialchars(resolveLangKey('confirm_install_installer', $langForGlobal)).'\')"><input type="hidden" name="ref" value="'.htmlspecialchars($bName).'"><input type="hidden" name="ref_type" value="branch"><button type="submit" name="self_update" class="btn">'.resolveLangKey('install', $langForGlobal).'</button></form></li>';
+                    $instBranchHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="ref" value="'.htmlspecialchars($bName).'"><input type="hidden" name="ref_type" value="branch"><button type="submit" name="self_update" class="btn">'.resolveLangKey('install', $langForGlobal).'</button></form></li>';
                 }
 
                 $instTagHtml = '';
@@ -554,7 +559,7 @@ final class InstallerApplication
                     $tCommit = (isset($tag['commit'])) ? (string) $tag['commit'] : '';
                     $tCommitShort = substr($tCommit, 0, 7);
                     $instTagHtml .= '<li><span><span class="tag-name">'.htmlspecialchars($tName).'</span><span class="commit-sha">'.htmlspecialchars($tCommitShort).'</span></span>';
-                    $instTagHtml .= '<form method="post" style="display:inline" onsubmit="return confirm(\''.htmlspecialchars(resolveLangKey('confirm_install_installer', $langForGlobal)).'\')"><input type="hidden" name="ref" value="'.htmlspecialchars($tName).'"><button type="submit" name="self_update" class="btn">'.resolveLangKey('install', $langForGlobal).'</button></form></li>';
+                    $instTagHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="ref" value="'.htmlspecialchars($tName).'"><button type="submit" name="self_update" class="btn">'.resolveLangKey('install', $langForGlobal).'</button></form></li>';
                 }
 
                 if (empty($instBranches)) {
@@ -640,7 +645,12 @@ final class InstallerApplication
                 $pluginPackageHtml = renderPackageListHtml($pluginClient->listPackages(), 'plugin', $langForGlobal);
                 $dataPackageHtml = renderPackageListHtml($dataClient->listPackages(), 'data', $langForGlobal);
                 $text_confirm_clear_cache = resolveLangKey('confirm_clear_cache', $langForGlobal);
-                $content = '<form method="post" style="margin-bottom:20px"><button type="submit" name="clear_cache" class="btn btn-secondary" onclick="return confirm(\''.htmlspecialchars($text_confirm_clear_cache).'\')">'.resolveLangKey('clear_cache', $langForGlobal).'</button></form>';
+                $clearCacheConfirmAttr = renderConfirmAttributes(
+                    resolveLangKey('clear_cache', $langForGlobal),
+                    $text_confirm_clear_cache,
+                    resolveLangKey('clear_cache', $langForGlobal),
+                );
+                $content = '<form method="post" style="margin-bottom:20px"'.$clearCacheConfirmAttr.'><button type="submit" name="clear_cache" class="btn btn-secondary">'.resolveLangKey('clear_cache', $langForGlobal).'</button></form>';
                 $content .= '<h3 style="margin-bottom:10px;">Runner</h3><ul class="tag-list" style="margin-bottom:20px;">'.$runnerPackageHtml.'</ul>';
                 $content .= '<h3 style="margin-bottom:10px;">Plugin</h3><ul class="tag-list" style="margin-bottom:20px;">'.$pluginPackageHtml.'</ul>';
                 $content .= '<h3 style="margin-bottom:10px;">Data</h3><ul class="tag-list">'.$dataPackageHtml.'</ul>';
