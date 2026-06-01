@@ -406,14 +406,15 @@ final class IndexFunctionsTest extends TestCase
         $this->assertTrue(isAllowedUpdaterFile('config.example.php'));
         $this->assertTrue(isAllowedUpdaterFile('lang/de.php'));
         $this->assertTrue(isAllowedUpdaterFile('lang/en.php'));
-        $this->assertTrue(isAllowedUpdaterFile('GitHubClient.php'));
-        $this->assertTrue(isAllowedUpdaterFile('HtmlRenderer.php'));
-        $this->assertTrue(isAllowedUpdaterFile('EnvLocalManager.php'));
+        $this->assertTrue(isAllowedUpdaterFile('app/GitHubClient.php'));
+        $this->assertTrue(isAllowedUpdaterFile('app/HtmlRenderer.php'));
+        $this->assertTrue(isAllowedUpdaterFile('app/EnvLocalManager.php'));
 
         $this->assertFalse(isAllowedUpdaterFile('config.php'));
         $this->assertFalse(isAllowedUpdaterFile('src/index.php'));
         $this->assertFalse(isAllowedUpdaterFile('lang/de.txt'));
         $this->assertFalse(isAllowedUpdaterFile('other/file.php'));
+        $this->assertFalse(isAllowedUpdaterFile('app/subdir/DeepFile.php'));
     }
 
     public function testCanUpdateInstallerToTag(): void
@@ -558,16 +559,20 @@ final class IndexFunctionsTest extends TestCase
         $archiveContent = $this->createZipArchive([
             'src/index.php' => '<?php echo "updated";',
             'src/config.example.php' => '<?php return [];',
+            'src/app/GitHubClient.php' => '<?php final class GitHubClient {}',
             'src/lang/en.php' => '<?php return ["title" => "Test"];',
             'src/config.php' => '<?php return ["do_not_copy" => true];',
+            'src/app/deep/Nested.php' => '<?php echo "skip";',
         ]);
 
         $result = updateUpdaterFromTag(new FakeGitHubClient($archiveContent), 'oakengine/installer', 'v1.0.0', 'src', $destinationDir);
 
-        $this->assertEqualsCanonicalizing(['index.php', 'config.example.php', 'lang/en.php'], $result['updated_files']);
-        $this->assertSame(['config.php'], $result['skipped_files']);
+        $this->assertEqualsCanonicalizing(['index.php', 'config.example.php', 'app/GitHubClient.php', 'lang/en.php'], $result['updated_files']);
+        $this->assertEqualsCanonicalizing(['config.php', 'app/deep/Nested.php'], $result['skipped_files']);
         $this->assertFileExists($destinationDir.'/index.php');
+        $this->assertFileExists($destinationDir.'/app/GitHubClient.php');
         $this->assertFileDoesNotExist($destinationDir.'/config.php');
+        $this->assertFileDoesNotExist($destinationDir.'/app/deep/Nested.php');
     }
 
     public function testClearCacheDirectory(): void

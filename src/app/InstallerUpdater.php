@@ -17,7 +17,7 @@ function resolveInstallerVersion(array $config, array $tags): string
         return $configured;
     }
 
-    $composerVersion = resolveComposerPackageVersion(dirname(__DIR__).'/composer.json');
+    $composerVersion = resolveComposerPackageVersion(dirname(__DIR__, 2).'/composer.json');
     if ('' !== $composerVersion) {
         return $composerVersion;
     }
@@ -80,7 +80,7 @@ function isAllowedUpdaterFile(string $relativePath): bool
         return false;
     }
 
-    if (1 === preg_match('/^[^\/]+\.php$/', $relativePath)) {
+    if (1 === preg_match('/^(?:[^\/]+\.php|app\/[^\/]+\.php)$/', $relativePath)) {
         return true;
     }
 

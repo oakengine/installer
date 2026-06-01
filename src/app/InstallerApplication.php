@@ -12,8 +12,10 @@ final class InstallerApplication
     {
         global $lang, $availableLangs;
 
-        $configPath = __DIR__.'/config.php';
-        $loadedConfig = file_exists($configPath) ? require $configPath : require __DIR__.'/config.example.php';
+        $srcRoot = dirname(__DIR__);
+        $projectRoot = dirname($srcRoot);
+        $configPath = $srcRoot.'/config.php';
+        $loadedConfig = file_exists($configPath) ? require $configPath : require $srcRoot.'/config.example.php';
         if (!is_array($loadedConfig)) {
             $loadedConfig = [];
         }
@@ -27,7 +29,7 @@ final class InstallerApplication
             }
         }
 
-        $langDir = __DIR__.'/lang/';
+        $langDir = $srcRoot.'/lang/';
         $foundLangs = glob($langDir.'*.php');
         /** @var array<string> $availableLangs */
         $availableLangs = (false !== $foundLangs) ? array_map(fn ($f) => basename((string) $f, '.php'), $foundLangs) : [];
@@ -170,9 +172,9 @@ final class InstallerApplication
                 $installerRepo = (string) $config['installer_repository'];
             }
 
-            $targetDir = realpath(__DIR__.'/'.$targetDirRelative);
+            $targetDir = realpath($srcRoot.'/'.$targetDirRelative);
             if (false === $targetDir) {
-                $absoluteTarget = __DIR__.'/'.$targetDirRelative;
+                $absoluteTarget = $srcRoot.'/'.$targetDirRelative;
                 if (!is_dir($absoluteTarget)) {
                     if (!\Oak\Engine\Installer\createDirectoryTree($absoluteTarget, 0o755)) {
                         throw new RuntimeException('Target directory cannot be created: '.$absoluteTarget);
@@ -211,7 +213,7 @@ final class InstallerApplication
             );
 
             $client = new GitHubClient($apiBaseUrl, $token, $currentInstallerVersion);
-            $githubCacheDir = dirname(__DIR__).'/var/cache/github-api';
+            $githubCacheDir = $projectRoot.'/var/cache/github-api';
             $installUuidManager = new InstallUuidManager();
             $envPath = rtrim($targetDirFinal, '/').'/.env.local';
             $installUuid = $installUuidManager->ensureEnvLocalInstallUuid($envPath);
@@ -395,7 +397,7 @@ final class InstallerApplication
                     $updaterSourcePath = (string) $config['updater_source_path'];
                 }
 
-                $selfUpdateResult = updateUpdaterFromTag($client, $installerRepo, $tag, $updaterSourcePath, __DIR__);
+                $selfUpdateResult = updateUpdaterFromTag($client, $installerRepo, $tag, $updaterSourcePath, $srcRoot);
                 $updatedCount = (int) count($selfUpdateResult['updated_files']);
 
                 writeConfigValues($configPath, [
