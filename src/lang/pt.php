@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 return [
-    'title' => 'Instalador de Repositórios GitHub',
+    'title' => 'OakEngine Installer',
     'repository' => 'Repositório',
     'target_directory' => 'Diretório de destino',
     'whitelist_active' => 'Lista branca ativa',

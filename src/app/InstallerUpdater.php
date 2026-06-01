@@ -84,7 +84,8 @@ function isAllowedUpdaterFile(string $relativePath): bool
         return true;
     }
 
-    return 1 === preg_match('/^lang\/.+\.php$/i', $relativePath);
+    return 1 === preg_match('/^lang\/.+\.php$/i', $relativePath)
+        || 1 === preg_match('/^logo\/.+\.(?:svg|png|js|ai)$/i', $relativePath);
 }
 
 /**

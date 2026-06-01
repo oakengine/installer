@@ -23,7 +23,7 @@ namespace {
     require_once __DIR__.'/app/InstallerApplication.php';
 
     /**
-     * Oak Engine Installer - package and self-update installer.
+     * OakEngine Installer - package and self-update installer.
      *
      * Installs runner, plugin, and data packages from the package API and
      * self-updates the installer from the GitHub repository.

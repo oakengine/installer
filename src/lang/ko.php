@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 return [
-    'title' => 'GitHub 저장소 설치 프로그램',
+    'title' => 'OakEngine Installer',
     'repository' => '저장소',
     'target_directory' => '대상 디렉토리',
     'whitelist_active' => '화이트리스트 활성',

@@ -340,6 +340,16 @@ final class IndexFunctionsTest extends TestCase
         }
     }
 
+    public function testAllLanguageFilesUseOakEngineInstallerTitle(): void
+    {
+        foreach (glob(__DIR__.'/../src/lang/*.php') as $file) {
+            /** @var array<string, string> $translations */
+            $translations = require $file;
+
+            $this->assertSame('OakEngine Installer', $translations['title'] ?? null, basename($file).' should use the unified installer title.');
+        }
+    }
+
     public function testComparePackageVersionsDesc(): void
     {
         $versions = ['1.2.0', '1.10.0', '1.9.0'];
@@ -406,6 +416,7 @@ final class IndexFunctionsTest extends TestCase
         $this->assertTrue(isAllowedUpdaterFile('config.example.php'));
         $this->assertTrue(isAllowedUpdaterFile('lang/de.php'));
         $this->assertTrue(isAllowedUpdaterFile('lang/en.php'));
+        $this->assertTrue(isAllowedUpdaterFile('logo/svg/oakengine.svg'));
         $this->assertTrue(isAllowedUpdaterFile('app/GitHubClient.php'));
         $this->assertTrue(isAllowedUpdaterFile('app/HtmlRenderer.php'));
         $this->assertTrue(isAllowedUpdaterFile('app/EnvLocalManager.php'));
@@ -413,6 +424,7 @@ final class IndexFunctionsTest extends TestCase
         $this->assertFalse(isAllowedUpdaterFile('config.php'));
         $this->assertFalse(isAllowedUpdaterFile('src/index.php'));
         $this->assertFalse(isAllowedUpdaterFile('lang/de.txt'));
+        $this->assertFalse(isAllowedUpdaterFile('logo/svg/oakengine.txt'));
         $this->assertFalse(isAllowedUpdaterFile('other/file.php'));
         $this->assertFalse(isAllowedUpdaterFile('app/subdir/DeepFile.php'));
     }
@@ -561,16 +573,18 @@ final class IndexFunctionsTest extends TestCase
             'src/config.example.php' => '<?php return [];',
             'src/app/GitHubClient.php' => '<?php final class GitHubClient {}',
             'src/lang/en.php' => '<?php return ["title" => "Test"];',
+            'src/logo/svg/oakengine.svg' => '<svg></svg>',
             'src/config.php' => '<?php return ["do_not_copy" => true];',
             'src/app/deep/Nested.php' => '<?php echo "skip";',
         ]);
 
         $result = updateUpdaterFromTag(new FakeGitHubClient($archiveContent), 'oakengine/installer', 'v1.0.0', 'src', $destinationDir);
 
-        $this->assertEqualsCanonicalizing(['index.php', 'config.example.php', 'app/GitHubClient.php', 'lang/en.php'], $result['updated_files']);
+        $this->assertEqualsCanonicalizing(['index.php', 'config.example.php', 'app/GitHubClient.php', 'lang/en.php', 'logo/svg/oakengine.svg'], $result['updated_files']);
         $this->assertEqualsCanonicalizing(['config.php', 'app/deep/Nested.php'], $result['skipped_files']);
         $this->assertFileExists($destinationDir.'/index.php');
         $this->assertFileExists($destinationDir.'/app/GitHubClient.php');
+        $this->assertFileExists($destinationDir.'/logo/svg/oakengine.svg');
         $this->assertFileDoesNotExist($destinationDir.'/config.php');
         $this->assertFileDoesNotExist($destinationDir.'/app/deep/Nested.php');
     }
@@ -1209,6 +1223,9 @@ ENV;
         $this->assertStringContainsString('class="env-form env-form--inline"', $html);
         $this->assertStringContainsString('class="env-row env-row--inline env-row--grow"', $html);
         $this->assertStringContainsString('class="env-input env-input--uuid"', $html);
+        $this->assertStringContainsString('<title>Installer · OakEngine Installer</title>', $html);
+        $this->assertStringContainsString('<img src="logo/svg/oakengine.svg" alt="">', $html);
+        $this->assertStringContainsString('<h1>OakEngine Installer</h1>', $html);
         $this->assertStringContainsString('<input type="hidden" name="view" value="install-uuid">', $html);
         $this->assertStringContainsString('dashboard-btn active" href="?view=install-uuid"', $html);
         $this->assertStringContainsString('Logout', $html);
@@ -1283,6 +1300,7 @@ ENV;
         $html = renderPage('Installer', '<p>LoginContent</p>', null, null, false, '');
 
         $this->assertStringContainsString('LoginContent', $html);
+        $this->assertStringContainsString('<h1>OakEngine Installer</h1>', $html);
         $this->assertStringNotContainsString('class="dashboard-nav"', $html);
     }
 

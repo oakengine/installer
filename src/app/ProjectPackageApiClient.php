@@ -31,6 +31,7 @@ final readonly class ProjectPackageApiClient
     {
         $response = $this->request([
             'type' => $this->packageType,
+            'package_type' => $this->packageType,
         ]);
         $packages = $response['packages'] ?? null;
         if (!is_array($packages)) {
@@ -43,13 +44,19 @@ final readonly class ProjectPackageApiClient
                 continue;
             }
 
-            $packageType = $this->normalizeScalar($package['package_type'] ?? null, $this->packageType);
+            $packageType = $this->normalizeScalar($package['package_type'] ?? null);
             $packageId = $this->normalizeScalar($package['package_id'] ?? null);
             $version = $this->normalizeScalar($package['version'] ?? null);
             $channel = $this->normalizeScalar($package['channel'] ?? null, 'unknown');
             $packageName = $this->normalizeScalar($package['package_name'] ?? null);
             $downloadUrl = $this->resolveDownloadUrl($this->normalizeScalar($package['download_url'] ?? null));
-            if ('' === $packageId || '' === $version || '' === $packageName || '' === $downloadUrl) {
+            if (
+                $this->packageType !== $packageType
+                || '' === $packageId
+                || '' === $version
+                || '' === $packageName
+                || '' === $downloadUrl
+            ) {
                 continue;
             }
 
@@ -135,11 +142,13 @@ final readonly class ProjectPackageApiClient
     {
         /** @var non-empty-string $baseUrl */
         $baseUrl = $this->baseUrl;
+        $requestPayload = $this->buildPayload($payload);
+        $querySeparator = str_contains($baseUrl, '?') ? '&' : '?';
         $ch = curl_init();
         curl_setopt_array($ch, [
-            CURLOPT_URL => $baseUrl,
+            CURLOPT_URL => $baseUrl.$querySeparator.http_build_query($requestPayload),
             CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => http_build_query($this->buildPayload($payload)),
+            CURLOPT_POSTFIELDS => http_build_query($requestPayload),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_TIMEOUT => 30,

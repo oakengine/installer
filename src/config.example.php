@@ -11,11 +11,11 @@ return [
 
     'installer_repository' => 'oakengine/installer',
 
-    'project_api_url' => '',
+    'project_api_url' => 'https://srcma.eu',
 
     'project_api_token' => '',
 
-    'github_token' => $_ENV['GITHUB_TOKEN'] ?? '',
+    'github_token' => '',
 
     'password' => '',
 

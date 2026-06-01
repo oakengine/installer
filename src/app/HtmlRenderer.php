@@ -765,12 +765,15 @@ HTML;
     global $lang;
     /** @var array<string, string> $langForTitle */
     $langForTitle = (isset($lang) && is_array($lang)) ? $lang : [];
-    $appTitle = resolveLangKey('title', $langForTitle);
     $sessionLangForTitle = 'en';
     if (isset($_SESSION['lang']) && is_string($_SESSION['lang'])) {
         $sessionLangForTitle = $_SESSION['lang'];
     }
     $langCode = $sessionLangForTitle;
+    $brandTitle = 'OakEngine Installer';
+    $pageTitle = htmlspecialchars($title);
+    $brandTitleEscaped = htmlspecialchars($brandTitle);
+    $pageSubtitleHtml = ($title !== $brandTitle) ? '<h2>'.$pageTitle.'</h2>' : '';
 
     return <<<HTML
 <!DOCTYPE html>
@@ -778,7 +781,7 @@ HTML;
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{$title} · Oak Engine Installer</title>
+<title>{$pageTitle} · {$brandTitleEscaped}</title>
 <style>
     :root {
         color-scheme: light dark;
@@ -869,14 +872,16 @@ HTML;
     }
     .brand { display: flex; align-items: center; gap: 14px; }
     .brand-mark {
-        width: 46px; height: 46px;
+        width: 54px; height: 54px;
         display: grid; place-items: center;
-        border-radius: 13px;
-        background: linear-gradient(135deg, var(--brand) 0%, #8b5bff 100%);
-        box-shadow: 0 8px 20px -8px var(--brand);
-        color: #fff;
+        padding: 6px;
+        border-radius: 16px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
     }
-    .brand-mark svg { width: 26px; height: 26px; display: block; }
+    .brand-mark img { width: 100%; height: 100%; display: block; object-fit: contain; }
     .header-left h1 { font-size: 1.4rem; font-weight: 720; letter-spacing: -0.02em; color: var(--text); line-height: 1.15; }
     .header-left h2 { color: var(--text-muted); font-size: 0.92rem; font-weight: 500; margin-top: 2px; }
     .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
@@ -1250,14 +1255,11 @@ HTML;
     <header>
         <div class="brand">
             <span class="brand-mark" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2 3 6.5v7L12 18l9-4.5v-7L12 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                    <path d="M3 6.5 12 11l9-4.5M12 11v7" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                </svg>
+                <img src="logo/svg/oakengine.svg" alt="">
             </span>
             <div class="header-left">
-                <h1>Oak Engine Installer</h1>
-                <h2>{$appTitle}</h2>
+                <h1>{$brandTitleEscaped}</h1>
+                {$pageSubtitleHtml}
             </div>
         </div>
         <div class="header-right">

@@ -68,6 +68,16 @@ $packages = [
         'download_url' => '/downloads/oak-plugin-2.0.0.tar.gz',
         'composer' => ['name' => 'oak/plugin'],
     ],
+    [
+        'package_id' => 'oak-untyped',
+        'version' => '9.9.9',
+        'channel' => 'stable',
+        'package_name' => 'oak/untyped',
+        'archive_size' => 42,
+        'archive_sha256' => 'sha-untyped',
+        'download_url' => '/downloads/oak-untyped-9.9.9.tar.gz',
+        'composer' => ['name' => 'oak/untyped'],
+    ],
 ];
 
 if ('/' === $path || '/packages' === $path) {
@@ -80,7 +90,22 @@ if ('/' === $path || '/packages' === $path) {
 
     header('Content-Type: application/json');
     echo json_encode([
-        'packages' => array_values(array_filter($packages, static fn (array $package): bool => $package['package_type'] === $packageType)),
+        'packages' => array_values(array_filter($packages, static fn (array $package): bool => ($package['package_type'] ?? null) === $packageType)),
+    ]);
+    return;
+}
+
+if ('/mixed' === $path) {
+    if (!$hasAccess) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'forbidden']);
+        return;
+    }
+
+    header('Content-Type: application/json');
+    echo json_encode([
+        'packages' => $packages,
     ]);
     return;
 }
@@ -228,6 +253,17 @@ PHP;
         $this->assertCount(1, $packages);
         $this->assertStringContainsString('runner-package-1.0.0', $download);
         $this->assertStringContainsString('Bearer package-token', $download);
+    }
+
+    public function testProjectPackageApiClientFiltersMixedResponsesByRequestedPackageType(): void
+    {
+        $client = new ProjectPackageApiClient((string) self::$baseUrl.'/mixed', 'plugin', '018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1');
+
+        $packages = $client->listPackages();
+
+        $this->assertCount(1, $packages);
+        $this->assertSame('plugin', $packages[0]['package_type']);
+        $this->assertSame('oak-plugin', $packages[0]['package_id']);
     }
 
     public function testProjectPackageArchiveExtractorExtractsTarGzPackages(): void

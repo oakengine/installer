@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 return [
-    'title' => 'Package Installer',
+    'title' => 'OakEngine Installer',
     'repository' => 'Server Endpoint',
     'target_directory' => 'Target directory',
     'whitelist_active' => 'Whitelist active',

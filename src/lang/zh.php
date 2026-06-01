@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 return [
-    'title' => 'GitHub 仓库安装程序',
+    'title' => 'OakEngine Installer',
     'repository' => '仓库',
     'target_directory' => '目标目录',
     'whitelist_active' => '白名单已启用',
