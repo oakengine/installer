@@ -152,6 +152,13 @@ if (!$zip->extractTo($updateDir)) {
 $zip->close();
 @unlink($tmpFile);
 
+// Rename config.example.php to config.php
+$configExample = $updateDir . '/config.example.php';
+$configFile = $updateDir . '/config.php';
+if (file_exists($configExample) && !file_exists($configFile)) {
+    rename($configExample, $configFile);
+}
+
 // Set permissions on extracted files
 $iterator = new RecursiveIteratorIterator(
     new RecursiveDirectoryIterator($updateDir, RecursiveDirectoryIterator::SKIP_DOTS),
