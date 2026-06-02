@@ -556,7 +556,7 @@ final class InstallerApplication
                     $bCommitShort = substr($bCommit, 0, 7);
                     $instBranchHtml .= '<li><span><span class="branch-name">'.htmlspecialchars($bName).'</span>'
                         .'<span class="commit-sha">'.htmlspecialchars($bCommitShort).'</span></span>';
-                    $instBranchHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($bName).'"><input type="hidden" name="ref_commit" value="'.htmlspecialchars($bCommit).'"><input type="hidden" name="ref_type" value="branch"><button type="submit" name="self_update" class="btn">'.resolveLangKey('install', $langForGlobal).'</button></form></li>';
+                    $instBranchHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($bName).'"><input type="hidden" name="ref_commit" value="'.htmlspecialchars($bCommit).'"><input type="hidden" name="ref_type" value="branch"><button type="submit" name="self_update" class="btn">'.lucideIcon('download', 15).' '.resolveLangKey('install', $langForGlobal).'</button></form></li>';
                 }
 
                 $instTagHtml = '';
@@ -565,7 +565,7 @@ final class InstallerApplication
                     $tCommit = (isset($tag['commit'])) ? (string) $tag['commit'] : '';
                     $tCommitShort = substr($tCommit, 0, 7);
                     $instTagHtml .= '<li><span><span class="tag-name">'.htmlspecialchars($tName).'</span><span class="commit-sha">'.htmlspecialchars($tCommitShort).'</span></span>';
-                    $instTagHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($tName).'"><input type="hidden" name="ref_commit" value="'.htmlspecialchars($tCommit).'"><button type="submit" name="self_update" class="btn">'.resolveLangKey('install', $langForGlobal).'</button></form></li>';
+                    $instTagHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($tName).'"><input type="hidden" name="ref_commit" value="'.htmlspecialchars($tCommit).'"><button type="submit" name="self_update" class="btn">'.lucideIcon('download', 15).' '.resolveLangKey('install', $langForGlobal).'</button></form></li>';
                 }
 
                 if (empty($instBranches)) {
@@ -580,8 +580,8 @@ final class InstallerApplication
                 $branchesActiveClass = ('tags' === $itab) ? '' : ' active';
                 $tagsActiveClass = ('tags' === $itab) ? ' active' : '';
                 $content .= '<div class="tabs">'
-                    .'<a class="tab'.$branchesActiveClass.'" href="?view=installer&itab=branches">'.resolveLangKey('branches', $langForGlobal).' ('.count($instBranches).')</a>'
-                    .'<a class="tab'.$tagsActiveClass.'" href="?view=installer&itab=tags">'.resolveLangKey('tags', $langForGlobal).' ('.count($instTags).')</a>'
+                    .'<a class="tab'.$branchesActiveClass.'" href="?view=installer&itab=branches">'.lucideIcon('git-branch', 15).' '.resolveLangKey('branches', $langForGlobal).' ('.count($instBranches).')</a>'
+                    .'<a class="tab'.$tagsActiveClass.'" href="?view=installer&itab=tags">'.lucideIcon('tag', 15).' '.resolveLangKey('tags', $langForGlobal).' ('.count($instTags).')</a>'
                     .'</div>';
                 if ('tags' === $itab) {
                     $content .= '<ul class="tag-list">'.$instTagHtml.'</ul>';
@@ -597,7 +597,7 @@ final class InstallerApplication
                 [
                     'icon' => 'installer',
                     'label' => resolveLangKey('updater_version', $langForGlobal),
-                    'value' => formatVersionBadge($currentInstallerVersion).' <a href="?view=installer">['.resolveLangKey('manage', $langForGlobal).']</a>',
+                    'value' => formatVersionBadge($currentInstallerVersion).' <a href="?view=installer">'.lucideIcon('wrench', 13).' '.resolveLangKey('manage', $langForGlobal).'</a>',
                 ],
                 [
                     'icon' => 'runner',
@@ -656,7 +656,7 @@ final class InstallerApplication
                     $text_confirm_clear_cache,
                     resolveLangKey('clear_cache', $langForGlobal),
                 );
-                $content = '<form method="post" style="margin-bottom:20px"'.$clearCacheConfirmAttr.'><button type="submit" name="clear_cache" class="btn btn-secondary">'.resolveLangKey('clear_cache', $langForGlobal).'</button></form>';
+                $content = '<form method="post" style="margin-bottom:20px"'.$clearCacheConfirmAttr.'><button type="submit" name="clear_cache" class="btn btn-secondary">'.lucideIcon('trash-2', 15).' '.resolveLangKey('clear_cache', $langForGlobal).'</button></form>';
                 $content .= '<h3 style="margin-bottom:10px;">Runner</h3><ul class="tag-list" style="margin-bottom:20px;">'.$runnerPackageHtml.'</ul>';
                 $content .= '<h3 style="margin-bottom:10px;">Plugin</h3><ul class="tag-list" style="margin-bottom:20px;">'.$pluginPackageHtml.'</ul>';
                 $content .= '<h3 style="margin-bottom:10px;">Data</h3><ul class="tag-list">'.$dataPackageHtml.'</ul>';

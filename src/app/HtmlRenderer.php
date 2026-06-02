@@ -114,7 +114,7 @@ function renderDropdown(string $name, array $options, string $selectedValue = ''
         .'<input type="hidden" name="'.htmlspecialchars($name).'" value="'.htmlspecialchars($selectedValue).'">'
         .'<button type="button" class="dropdown-toggle" aria-haspopup="listbox" aria-expanded="false"'.$disabledAttr.'>'
         .'<span class="dropdown-label">'.htmlspecialchars($selectedLabel).'</span>'
-        .'<svg class="dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        .'<svg class="dropdown-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>'
         .'</button>'
         .'<ul class="dropdown-menu" role="listbox" tabindex="-1">'.$optionsHtml.'</ul>'
         .'</div>';
@@ -129,13 +129,13 @@ function renderDropdown(string $name, array $options, string $selectedValue = ''
 function renderStatusOverview(array $items): string
 {
     $paths = [
-        'installer' => '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12l8.73-5.04"/><path d="M12 22V12"/>',
-        'runner' => '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
-        'plugin' => '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
-        'data' => '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
-        'endpoint' => '<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01"/><path d="M6 18h.01"/>',
+        'installer' => '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/>',
+        'runner' => '<path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09"/><path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05"/>',
+        'plugin' => '<path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/>',
+        'data' => '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+        'endpoint' => '<rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/>',
         'folder' => '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
-        'shield' => '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+        'shield' => '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
     ];
 
     $icons = [];
@@ -158,6 +158,42 @@ function renderStatusOverview(array $items): string
 }
 
 /**
+ * Returns an inline SVG for a Lucide v1.17.0 icon.
+ *
+ * @param int $size SVG width/height in pixels (default 16)
+ */
+function lucideIcon(string $name, int $size = 16): string
+{
+    static $map = [
+        'home' => '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+        'refresh-cw' => '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+        'settings' => '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+        'database' => '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+        'fingerprint' => '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>',
+        'wrench' => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>',
+        'download' => '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
+        'trash-2' => '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+        'save' => '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+        'play' => '<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
+        'plus' => '<path d="M5 12h14"/><path d="M12 5v14"/>',
+        'x' => '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+        'check' => '<path d="M20 6 9 17l-5-5"/>',
+        'log-in' => '<path d="m10 17 5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>',
+        'log-out' => '<path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>',
+        'external-link' => '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+        'git-branch' => '<path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>',
+        'tag' => '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+    ];
+
+    $inner = $map[$name] ?? '';
+    if ('' === $inner) {
+        return '';
+    }
+
+    return '<svg width="'.$size.'" height="'.$size.'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'.$inner.'</svg>';
+}
+
+/**
  * Renders an accessible modal dialog. The body is treated as trusted HTML.
  */
 function renderModal(string $modalId, string $title, string $bodyHtml, string $closeLabel = 'Close'): string
@@ -169,7 +205,7 @@ function renderModal(string $modalId, string $title, string $bodyHtml, string $c
         .'<div class="modal-dialog" role="document">'
         .'<div class="modal-header">'
         .'<h3 class="modal-title">'.htmlspecialchars($title).'</h3>'
-        .'<button type="button" class="modal-close" data-modal-close="'.$idAttr.'" aria-label="'.htmlspecialchars($closeLabel).'">&times;</button>'
+        .'<button type="button" class="modal-close" data-modal-close="'.$idAttr.'" aria-label="'.htmlspecialchars($closeLabel).'">'.lucideIcon('x', 16).'</button>'
         .'</div>'
         .'<div class="modal-body">'.$bodyHtml.'</div>'
         .'</div></div>';
@@ -192,13 +228,13 @@ function renderConfirmationModal(string $modalId, string $closeLabel): string
         .'<div class="modal-dialog" role="document">'
         .'<div class="modal-header">'
         .'<h3 class="modal-title" data-confirm-title></h3>'
-        .'<button type="button" class="modal-close" data-modal-close="'.$idAttr.'" aria-label="'.$closeLabelEscaped.'">&times;</button>'
+        .'<button type="button" class="modal-close" data-modal-close="'.$idAttr.'" aria-label="'.$closeLabelEscaped.'">'.lucideIcon('x', 16).'</button>'
         .'</div>'
         .'<div class="modal-body">'
         .'<p class="confirm-message" data-confirm-message></p>'
         .'<div class="modal-actions">'
-        .'<button type="button" class="btn btn-secondary" data-modal-close="'.$idAttr.'">'.$closeLabelEscaped.'</button>'
-        .'<button type="button" class="btn" data-confirm-submit></button>'
+        .'<button type="button" class="btn btn-secondary" data-modal-close="'.$idAttr.'">'.lucideIcon('x', 14).' '.$closeLabelEscaped.'</button>'
+        .'<button type="button" class="btn" data-confirm-submit>'.lucideIcon('check', 14).' </button>'
         .'</div>'
         .'</div>'
         .'</div>'
@@ -304,7 +340,7 @@ function renderPackageListHtml(array $packages, string $packageType, array $lang
             .'<input type="hidden" name="package_type" value="'.htmlspecialchars($packageType).'">'
             .'<input type="hidden" name="package_id" value="'.htmlspecialchars($packageId).'">'
             .$dropdown
-            .'<button type="submit" name="install" class="btn">'.resolveLangKey('install', $lang).'</button>'
+            .'<button type="submit" name="install" class="btn">'.lucideIcon('download', 15).' '.resolveLangKey('install', $lang).'</button>'
             .'</form></li>';
     }
 
@@ -420,13 +456,14 @@ function renderLoginForm(string $error = '', array $versionMeta = []): void
             .'</div>';
     }
 
+    $iconLogin = lucideIcon('log-in', 16);
     $content = <<<HTML
 <div class="login-form">
 <p>{$text_please_enter_password}</p>
 {$errorHtml}
 <form method="post">
     <input type="password" name="password" placeholder="{$text_password_placeholder}" autofocus>
-    <button type="submit" class="btn">{$text_login}</button>
+    <button type="submit" class="btn">{$iconLogin} {$text_login}</button>
 </form>
 {$versionInfoHtml}
 </div>
@@ -451,7 +488,7 @@ function renderPage(
     $errorHtml = (null !== $error && '' !== $error) ? '<div class="error">'.htmlspecialchars((string) $error).'</div>' : '';
     $text_logout = resolveLangKey('logout', $langForPage);
     $text_close = resolveLangKey('close', $langForPage);
-    $logoutButton = $showLogout ? '<form method="get" class="logout-form"><input type="hidden" name="logout" value="1"><button type="submit" class="btn btn-secondary btn-small">'.htmlspecialchars($text_logout).'</button></form>' : '';
+    $logoutButton = $showLogout ? '<form method="get" class="logout-form"><input type="hidden" name="logout" value="1"><button type="submit" class="btn btn-secondary btn-small">'.lucideIcon('log-out', 14).' '.htmlspecialchars($text_logout).'</button></form>' : '';
 
     $text_language = resolveLangKey('language', $langForPage);
     global $availableLangs;
@@ -566,6 +603,11 @@ HTML;
         $envRawContent = htmlspecialchars((string) $envConfig['raw_content']);
         $currentInstallUuid = htmlspecialchars((string) ($envConfig['install_uuid'] ?? ''));
         $dashboardStateInputs = renderDashboardStateInputs($activeView, $requestDashboardState['itab']);
+        $iconSave = lucideIcon('save', 14);
+        $iconPlay = lucideIcon('play', 14);
+        $iconPlus = lucideIcon('plus', 14);
+        $iconTrash = lucideIcon('trash-2', 14);
+        $iconRefresh = lucideIcon('refresh-cw', 14);
 
         $envConfigHtml = <<<HTML
 <div class="env-config">
@@ -575,7 +617,7 @@ HTML;
         <label>{$text_mode}:</label>
         {$appEnvDropdown}
     </div>
-    <button type="submit" name="save_env" class="btn btn-secondary btn-small">{$text_save}</button>
+    <button type="submit" name="save_env" class="btn btn-secondary btn-small">{$iconSave} {$text_save}</button>
 </form>
 
 <h3 style="margin-bottom:10px;">{$text_env_editor}</h3>
@@ -583,7 +625,7 @@ HTML;
     {$dashboardStateInputs}
     <label style="display:block; margin-bottom:6px; font-weight:500; color:#586069;">{$text_env_content}:</label>
     <textarea name="env_content" class="env-textarea">{$envRawContent}</textarea>
-    <button type="submit" name="save_env_content" class="btn btn-secondary btn-small" style="margin-top:8px;">{$text_save_env_file}</button>
+    <button type="submit" name="save_env_content" class="btn btn-secondary btn-small" style="margin-top:8px;">{$iconSave} {$text_save_env_file}</button>
 </form>
 </div>
 HTML;
@@ -597,7 +639,7 @@ HTML;
     </div>
     <form method="post"{$runMigrationsConfirmAttr}>
         {$dashboardStateInputs}
-        <button type="submit" name="run_migrations" class="btn btn-secondary" {$migrationsDisabled}>{$text_run_migrations}</button>
+        <button type="submit" name="run_migrations" class="btn btn-secondary" {$migrationsDisabled}>{$iconPlay} {$text_run_migrations}</button>
     </form>
 </div>
 
@@ -609,7 +651,7 @@ HTML;
         <label>{$text_database}:</label>
         {$databaseDropdown}
     </div>
-    <button type="submit" name="save_env" class="btn btn-secondary btn-small" {$databaseActionDisabled}>{$text_save}</button>
+    <button type="submit" name="save_env" class="btn btn-secondary btn-small" {$databaseActionDisabled}>{$iconSave} {$text_save}</button>
 </form>
 
 <hr style="margin:15px 0; border:none; border-top:1px solid #d1d5db;">
@@ -625,7 +667,7 @@ HTML;
         <label>{$text_db_url}:</label>
         <input type="text" name="db_url" class="env-input env-input--wide" required>
     </div>
-    <button type="submit" name="add_database" class="btn btn-secondary btn-small">{$text_add_database}</button>
+    <button type="submit" name="add_database" class="btn btn-secondary btn-small">{$iconPlus} {$text_add_database}</button>
 </form>
 
 <form method="post" class="env-form">
@@ -634,7 +676,7 @@ HTML;
         <label>{$text_select_database}:</label>
         {$removeDbDropdown}
     </div>
-    <button type="submit" name="remove_database" class="btn btn-small" {$removeDatabaseActionDisabled}>{$text_remove_database}</button>
+    <button type="submit" name="remove_database" class="btn btn-small" {$removeDatabaseActionDisabled}>{$iconTrash} {$text_remove_database}</button>
 </form>
 </div>
 HTML;
@@ -649,11 +691,11 @@ HTML;
         <label>{$text_install_uuid}:</label>
         <input type="text" name="install_uuid" value="{$currentInstallUuid}" class="env-input env-input--uuid" required pattern="[0-9a-fA-F-]{36}">
     </div>
-    <button type="submit" name="save_install_uuid" class="btn btn-secondary btn-small">{$text_save}</button>
+    <button type="submit" name="save_install_uuid" class="btn btn-secondary btn-small">{$iconSave} {$text_save}</button>
 </form>
 <form method="post">
     {$dashboardStateInputs}
-    <button type="submit" name="regenerate_install_uuid" class="btn btn-small">{$text_regenerate_install_uuid}</button>
+    <button type="submit" name="regenerate_install_uuid" class="btn btn-small">{$iconRefresh} {$text_regenerate_install_uuid}</button>
 </form>
 </div>
 HTML;
@@ -662,17 +704,17 @@ HTML;
         $text_dashboard_installer = resolveLangKey('dashboard_installer', $langForTemplate);
 
         $navItems = [
-            ['view' => 'home', 'href' => '?', 'label' => $text_dashboard_home],
-            ['view' => 'updates', 'href' => '?view=updates', 'label' => $text_dashboard_updates],
-            ['view' => 'environment', 'href' => '?view=environment', 'label' => $text_dashboard_environment],
-            ['view' => 'databases', 'href' => '?view=databases', 'label' => $text_dashboard_databases],
-            ['view' => 'install-uuid', 'href' => '?view=install-uuid', 'label' => $text_dashboard_install_uuid],
-            ['view' => 'installer', 'href' => '?view=installer', 'label' => $text_dashboard_installer],
+            ['view' => 'home', 'href' => '?', 'label' => $text_dashboard_home, 'icon' => 'home'],
+            ['view' => 'updates', 'href' => '?view=updates', 'label' => $text_dashboard_updates, 'icon' => 'refresh-cw'],
+            ['view' => 'environment', 'href' => '?view=environment', 'label' => $text_dashboard_environment, 'icon' => 'settings'],
+            ['view' => 'databases', 'href' => '?view=databases', 'label' => $text_dashboard_databases, 'icon' => 'database'],
+            ['view' => 'install-uuid', 'href' => '?view=install-uuid', 'label' => $text_dashboard_install_uuid, 'icon' => 'fingerprint'],
+            ['view' => 'installer', 'href' => '?view=installer', 'label' => $text_dashboard_installer, 'icon' => 'wrench'],
         ];
         $navLinks = '';
         foreach ($navItems as $navItem) {
             $activeClass = ($navItem['view'] === $activeView) ? ' active' : '';
-            $navLinks .= '<a class="btn btn-secondary dashboard-btn'.$activeClass.'" href="'.$navItem['href'].'">'.$navItem['label'].'</a>';
+            $navLinks .= '<a class="btn btn-secondary dashboard-btn'.$activeClass.'" href="'.$navItem['href'].'">'.lucideIcon($navItem['icon'], 16).' '.$navItem['label'].'</a>';
         }
         $dashboardNavHtml = '<div class="dashboard-nav">'.$navLinks.'</div>';
 
@@ -881,6 +923,7 @@ HTML;
     $pageTitle = htmlspecialchars($title);
     $brandTitleEscaped = htmlspecialchars($brandTitle);
     $pageSubtitleHtml = ($title !== $brandTitle) ? '<h2>'.$pageTitle.'</h2>' : '';
+    $footerIcon = lucideIcon('external-link', 14);
 
     return <<<HTML
 <!DOCTYPE html>
@@ -989,6 +1032,46 @@ HTML;
         overflow: hidden;
     }
     .brand-mark img { width: 100%; height: 100%; display: block; object-fit: contain; }
+    .brand-mark svg { width: 100%; height: 100%; display: block; }
+    .brand-mark svg #oakengine-logo-1,
+    .brand-mark svg #oakengine-logo-3,
+    .brand-mark svg #oakengine-logo-5 { fill: var(--brand); }
+    .brand-mark svg #oakengine-logo-2,
+    .brand-mark svg #oakengine-logo-4,
+    .brand-mark svg #oakengine-logo-6 { fill: var(--surface); }
+    .brand-mark svg #oakengine-logo-7 { fill: color-mix(in srgb, var(--brand) 70%, var(--text)); }
+    .brand-mark svg #oakengine-logo-8 { fill: var(--surface); }
+    .brand-mark svg #oakengine-logo-1,
+    .brand-mark svg #oakengine-logo-2,
+    .brand-mark svg #oakengine-logo-3,
+    .brand-mark svg #oakengine-logo-4,
+    .brand-mark svg #oakengine-logo-5,
+    .brand-mark svg #oakengine-logo-6,
+    .brand-mark svg #oakengine-logo-7,
+    .brand-mark svg #oakengine-logo-8 {
+        transform-box: view-box;
+        transform-origin: center;
+    }
+    .brand-mark svg #oakengine-logo-1,
+    .brand-mark svg #oakengine-logo-2,
+    .brand-mark svg #oakengine-logo-3,
+    .brand-mark svg #oakengine-logo-4,
+    .brand-mark svg #oakengine-logo-5,
+    .brand-mark svg #oakengine-logo-6 {
+        animation: oak-logo-outer-spin 24s linear infinite;
+    }
+    .brand-mark svg #oakengine-logo-7,
+    .brand-mark svg #oakengine-logo-8 {
+        animation: oak-logo-inner-spin 12s linear infinite;
+    }
+    @keyframes oak-logo-outer-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    @keyframes oak-logo-inner-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(-360deg); }
+    }
     .header-left h1 { font-size: 1.4rem; font-weight: 720; letter-spacing: -0.02em; color: var(--text); line-height: 1.15; }
     .header-left h2 { color: var(--text-muted); font-size: 0.92rem; font-weight: 500; margin-top: 2px; }
     .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
@@ -1132,6 +1215,12 @@ HTML;
     .btn:active { transform: translateY(1px); }
     .btn:focus-visible { outline: none; box-shadow: var(--ring); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+    .btn svg { width: 15px; height: 15px; flex-shrink: 0; margin-right: 4px; }
+    .dashboard-btn svg { width: 16px; height: 16px; }
+    .tab svg { width: 15px; height: 15px; flex-shrink: 0; margin-right: 4px; }
+    .modal-close svg { width: 16px; height: 16px; margin-right: 0; }
+    .status-value a svg { width: 13px; height: 13px; vertical-align: middle; margin-right: 3px; }
+    .footer-link svg { width: 14px; height: 14px; flex-shrink: 0; margin-right: 0; }
     .btn-secondary { background: var(--brand); }
     .btn-secondary:hover { background: var(--brand-strong); }
     .btn-small { padding: 7px 13px; font-size: 0.82rem; }
@@ -1146,7 +1235,7 @@ HTML;
     .file-list { list-style: none; padding: 14px 16px; max-height: 320px; overflow-y: auto; background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius); }
     .file-list li { padding: 4px 0; font-family: var(--font-mono); font-size: 0.84rem; color: var(--text-muted); }
     .back-link { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 20px; color: var(--brand); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
-    .back-link::before { content: '←'; }
+    .back-link::before { content: ''; display: inline-block; width: 16px; height: 16px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19-7-7 7-7'/%3E%3Cpath d='M19 12H5'/%3E%3C/svg%3E") no-repeat center/contain; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19-7-7 7-7'/%3E%3Cpath d='M19 12H5'/%3E%3C/svg%3E") no-repeat center/contain; }
     .back-link:hover { text-decoration: underline; }
     .logout-form { display: inline-block; }
     .login-form { max-width: 340px; margin: 36px auto; }
@@ -1188,7 +1277,7 @@ HTML;
     .lang-form { display: flex; align-items: center; gap: 6px; }
     .lang-form label { font-size: 0.82rem; color: var(--text-muted); }
     footer { margin-top: 28px; text-align: center; }
-    .footer-link { color: var(--text-soft); text-decoration: none; font-size: 0.82rem; }
+    .footer-link { color: var(--text-soft); text-decoration: none; font-size: 0.82rem; display: inline-flex; align-items: center; gap: 5px; }
     .footer-link:hover { color: var(--brand); text-decoration: underline; }
     @media (max-width: 600px) {
         .container { padding: 24px 20px; border-radius: var(--radius); }
@@ -1254,7 +1343,7 @@ HTML;
     }
     .dropdown-option.is-active { background: var(--surface-muted); }
     .dropdown-option.is-selected { color: var(--brand-strong); font-weight: 600; }
-    .dropdown-option.is-selected::after { content: '✓'; color: var(--brand); font-weight: 700; }
+    .dropdown-option.is-selected::after { content: ''; display: inline-block; width: 14px; height: 14px; flex-shrink: 0; background: var(--brand); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center/contain; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center/contain; }
     .dropdown-version { min-width: 220px; }
     .install-form { display: inline-flex; align-items: center; gap: 10px; }
     .tag-list { overflow: visible; }
@@ -1336,8 +1425,8 @@ HTML;
         border-radius: 8px;
         background: transparent;
         color: var(--text-muted);
-        font-size: 1.3rem;
-        line-height: 1;
+        display: grid;
+        place-items: center;
         cursor: pointer;
         transition: background .15s ease, color .15s ease;
     }
@@ -1369,7 +1458,7 @@ HTML;
     <header>
         <div class="brand">
             <span class="brand-mark" aria-hidden="true">
-                <img src="logo/svg/oakengine.svg" alt="">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 557 557"><path id="oakengine-logo-1" d="M486.57,100.94c.59.71,4.81,1.58,6.59,2.75,7.77,5.11,30.69,38.51,34.12,47.76,5.6,15.11,3.75,29,11.49,44.88,14.79,30.37,18.97,33.04,16.21,68.88-.71,9.15,1.38,15.5,1.93,23.78.99,14.96-6.66,29.7-10.1,44.27-4.55,19.28-7.6,51.8-19.77,67.22-5.14,6.52-13.02,11.56-17.57,18.91-3.38,5.47-3.76,11.43-6.62,16.1-1.94,3.16-6.04,6.64-8.48,10.26-4.96,7.34-8.93,16.5-14.38,23.12-9.47,11.5-52.58,45.56-65.97,50.25-15.43,5.4-14.22,5.81-27.34,13.98-31.38,19.55-97.88,26.3-134.16,23.01-11.18-1.01-16.96-10.71-30.33-9.93-8.13.47-10.04,2.71-19.33.68-18.13-3.97-41.24-13.2-57.66-21.98-19.56-10.47-28.18-24.67-45.93-36.82-4.18-2.86-10.19-4.62-13.75-7.9-3.69-3.4-7.32-11.23-10.91-15.73-8.59-10.76-17.25-22.04-26.91-31.27s-17.19-26.63-22.92-39.27c-5.02-11.07-14.51-31.07-15.7-42.6-.75-7.24.77-15.61-.21-22.59-.73-5.18-5.17-8.8-5.79-14.95-.73-7.17,1.96-10.19,2.68-16.12,1.16-9.45-4.99-20.41-5.66-30.43-1.23-18.4,9-65.16,16.23-82.77,3.12-7.6,9.31-12.42,12.1-19.48,1.84-4.65,1.86-9.46,3.88-13.92,3.46-7.67,11.49-13.34,13.66-22.86,4.29-18.79,10.29-26.57,24.72-39.42,5.12-4.56,12.68-8.72,17.21-13.32,7.27-7.38,7.86-13.31,18.18-20.28,13.45-9.09,26.67-5.82,37.68-16.41,3.35-3.22,4.42-7.03,7.82-9.93C171.17,12.11,239.32,1.03,265.26.04c9.45-.36,13.73,2.04,21.71,2.91,21.87,2.37,40.63.42,62.35,6.33,18.75,5.11,44.03,17.81,61.9,26.62,18.9,9.31,61.85,31.55,70.7,50.42,1.33,2.84,4.16,14.03,4.65,14.62Z"/><path id="oakengine-logo-2" d="M260.69,21.18c26.18-1.59,51.2,3.07,77.03,5.78,16.32,1.71,24.46,12.94,38.17,18.89,15.45,6.7,26.37,6.87,41.75,17.26,26.25,17.73,37.67,32.37,57.42,55.92,12.24,14.59,20.99,20.79,29.77,39.27,7.76,16.32,9.42,30.96,15.08,47.19,2.22,6.36,6.27,12.85,8.12,19.54,5.13,18.56,9.08,64.25,5.12,82.53-1.23,5.66-4.56,10.88-6.13,16.6-7.7,27.98-4.56,45.67-24.04,70.84-11.2,14.47-15.61,23.16-25.05,38.1-12.12,19.17-51.11,55.68-71.31,65.67-6.83,3.38-14.66,4.62-21.46,8.04-5.84,2.93-11.39,8.26-17.39,11.16-17.61,8.5-49.54,13.75-69.16,15.31-34.02,2.7-61.8-5.27-94.91-11.06-25.77-4.5-39.74-13.68-62.09-26.43-11.41-6.51-20.06-18.5-29.72-27.44-30.51-28.22-50.35-44.71-66.44-85.45-7.73-19.56-20.7-57.84-22.76-78.08-7.39-72.54,15.67-128.09,54.86-186.33,36.15-53.72,119.7-93.45,183.13-97.31Z"/><path id="oakengine-logo-3" d="M265.05,48.93c51.95-3.83,92.15,15.53,137.37,38.14,36.07,18.04,38.01,28.71,59.74,59.63,16.16,23,33.27,35.99,38.47,65.98,5.2,30.01,9.68,60.88,4.99,91.12-2.92,18.86-8.98,42.96-13.76,61.69-9.42,36.91-23.42,41.14-46.88,65.55-4.47,4.65-8.24,11.01-12.45,15.66-17.43,19.24-34.95,32.43-59.66,40.57-27.77,9.14-68.72,23.8-97.23,23.82-29.08.02-103.83-23.89-126.22-42.72-9.28-7.81-15.8-18.38-23.93-27.25-16.42-17.92-38.59-32.38-50.47-53.87-14.79-26.75-15.67-50.47-21.58-79-6.06-29.28-10.46-37.35-1.59-68.37,3.75-13.11,11.1-24.07,14.73-36.53,2.71-9.34,3.42-19.08,6.69-28.52,7.93-22.92,25.64-35.32,41.74-51.6,8.94-9.04,18.2-20.68,27.42-28.76,25.21-22.08,89.42-43.09,122.63-45.54Z"/><path id="oakengine-logo-4" d="M270.04,61.02c44.64-3,82.16,15.2,121.39,34.11,36.88,17.77,36.78,23.72,58.74,55.6,15.12,21.94,34.47,35.13,39.46,63.97,4.88,28.15,9.38,57.81,5,86.07-3.04,19.61-9.38,47.49-14.97,66.52-9.21,31.31-23.98,35.51-43.68,56.69-18.79,20.2-29.32,38.42-57.12,49.17-18.53,7.17-45.27,15.06-64.68,20.38-46.49,12.76-89.5-1.05-132.49-19.47-29.55-12.66-31.94-24.01-51.73-45.54-16.08-17.49-36.69-29.41-47.62-51.71-10.91-22.27-12.76-43.81-17.07-67.42-2.76-15.14-8.71-26.09-7.59-42.47,1.6-23.38,10.97-35.21,18.12-55.28,3.78-10.61,4.28-22.1,7.69-32.55,9.4-28.89,50.34-53.75,68.92-77.57,23.3-19.61,87.33-38.47,117.64-40.5Z"/><path id="oakengine-logo-5" d="M134.86,404.94c-12.93-13.16-23.13-21.12-30.86-38.89-20.78-47.83-27.02-80.7-14.21-132.21,11.72-47.15,53.77-100.71,96.56-123.25,102.46-53.98,229.59-8.52,271.38,100.04,28.31,73.55,14.04,135.77-34.73,195.22-51.41,62.68-128.43,82.88-205.45,58.24-40.64-13-54.05-29.97-82.7-59.14Z"/><path id="oakengine-logo-6" d="M266.05,101.33c-89.47,6.77-162.55,77.39-171.54,167.5-3.32,33.21,13.68,91.82,36.54,116.28,19.29,20.63,45.49,49.18,70.94,60.42,75.11,33.19,158.25,18.03,211.03-45.73,49.44-59.73,61.5-122.14,29.45-194.94-29.51-67.01-104.2-108.99-176.42-103.53Z"/><path id="oakengine-logo-7" d="M420.49,225.81c1.9,5.16.3,10.9-3.79,14.58l-25.66,23.35c.65,4.92,1.01,9.96,1.01,15.05s-.36,10.13-1.01,15.05l25.66,23.35c4.09,3.67,5.69,9.42,3.79,14.58-2.61,7.05-5.75,13.81-9.36,20.33l-2.79,4.8c-3.91,6.52-8.3,12.68-13.1,18.49-3.5,4.27-9.3,5.69-14.52,4.03l-33.01-10.49c-7.94,6.1-16.71,11.2-26.08,15.05l-7.41,33.84c-1.19,5.39-5.33,9.66-10.79,10.55-8.18,1.36-16.59,2.07-25.19,2.07s-17.01-.71-25.19-2.07c-5.45-.89-9.6-5.16-10.79-10.55l-7.41-33.84c-9.36-3.85-18.14-8.95-26.08-15.05l-32.95,10.55c-5.22,1.66-11.02.18-14.52-4.03-4.8-5.81-9.19-11.97-13.1-18.49l-2.79-4.8c-3.62-6.52-6.76-13.28-9.36-20.33-1.9-5.16-.3-10.9,3.79-14.58l25.66-23.35c-.65-4.98-1.01-10.02-1.01-15.11s.36-10.13,1.01-15.05l-25.66-23.35c-4.09-3.67-5.69-9.42-3.79-14.58,2.61-7.05,5.75-13.81,9.36-20.33l2.79-4.8c3.91-6.52,8.3-12.68,13.1-18.49,3.5-4.27,9.3-5.69,14.52-4.03l33.01,10.49c7.94-6.1,16.71-11.2,26.08-15.05l7.41-33.84c1.19-5.39,5.33-9.66,10.79-10.55,8.18-1.42,16.59-2.13,25.19-2.13s17.01.71,25.19,2.07c5.45.89,9.6,5.16,10.79,10.55l7.41,33.84c9.36,3.85,18.14,8.95,26.08,15.05l33.01-10.49c5.22-1.66,11.02-.18,14.52,4.03,4.8,5.81,9.19,11.97,13.1,18.49l2.79,4.8c3.62,6.52,6.76,13.28,9.36,20.33l-.06.06Z"/><circle id="oakengine-logo-8" cx="278.5" cy="278.5" r="47.41"/></svg>
             </span>
             <div class="header-left">
                 <h1>{$brandTitleEscaped}</h1>
@@ -1388,7 +1477,7 @@ HTML;
     <main class="dashboard-main">{$mainSection}</main>
 </div>
 <footer>
-    <a href="https://github.com/oakengine/installer" target="_blank" class="footer-link">github.com/oakengine/installer</a>
+    <a href="https://github.com/oakengine/installer" target="_blank" class="footer-link">{$footerIcon} github.com/oakengine/installer</a>
 </footer>
 {$confirmationModal}
 {$dropdownScript}
