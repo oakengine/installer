@@ -44,13 +44,13 @@ function resolveDashboardState(mixed $getView, mixed $getItab = null, mixed $pos
 
 function buildDashboardViewHref(string $view, ?string $itab = null): string
 {
-    if ('home' === $view) {
-        return '?';
-    }
+    $params = ['_t' => time()];
 
-    $params = ['view' => $view];
-    if ('installer' === $view) {
-        $params['itab'] = resolveInstallerTab($itab);
+    if ('home' !== $view) {
+        $params['view'] = $view;
+        if ('installer' === $view) {
+            $params['itab'] = resolveInstallerTab($itab);
+        }
     }
 
     return '?'.http_build_query($params);
@@ -488,7 +488,7 @@ function renderPage(
     $errorHtml = (null !== $error && '' !== $error) ? '<div class="error">'.htmlspecialchars((string) $error).'</div>' : '';
     $text_logout = resolveLangKey('logout', $langForPage);
     $text_close = resolveLangKey('close', $langForPage);
-    $logoutButton = $showLogout ? '<form method="get" class="logout-form"><input type="hidden" name="logout" value="1"><button type="submit" class="btn btn-secondary btn-small">'.lucideIcon('log-out', 14).' '.htmlspecialchars($text_logout).'</button></form>' : '';
+    $logoutButton = $showLogout ? '<form method="get" class="logout-form"><input type="hidden" name="logout" value="1"><input type="hidden" name="_t" value="'.time().'"><button type="submit" class="btn btn-secondary btn-small">'.lucideIcon('log-out', 14).' '.htmlspecialchars($text_logout).'</button></form>' : '';
 
     $text_language = resolveLangKey('language', $langForPage);
     global $availableLangs;
@@ -704,12 +704,12 @@ HTML;
         $text_dashboard_installer = resolveLangKey('dashboard_installer', $langForTemplate);
 
         $navItems = [
-            ['view' => 'home', 'href' => '?', 'label' => $text_dashboard_home, 'icon' => 'home'],
-            ['view' => 'updates', 'href' => '?view=updates', 'label' => $text_dashboard_updates, 'icon' => 'refresh-cw'],
-            ['view' => 'environment', 'href' => '?view=environment', 'label' => $text_dashboard_environment, 'icon' => 'settings'],
-            ['view' => 'databases', 'href' => '?view=databases', 'label' => $text_dashboard_databases, 'icon' => 'database'],
-            ['view' => 'install-uuid', 'href' => '?view=install-uuid', 'label' => $text_dashboard_install_uuid, 'icon' => 'fingerprint'],
-            ['view' => 'installer', 'href' => '?view=installer', 'label' => $text_dashboard_installer, 'icon' => 'wrench'],
+            ['view' => 'home', 'href' => buildDashboardViewHref('home'), 'label' => $text_dashboard_home, 'icon' => 'home'],
+            ['view' => 'updates', 'href' => buildDashboardViewHref('updates'), 'label' => $text_dashboard_updates, 'icon' => 'refresh-cw'],
+            ['view' => 'environment', 'href' => buildDashboardViewHref('environment'), 'label' => $text_dashboard_environment, 'icon' => 'settings'],
+            ['view' => 'databases', 'href' => buildDashboardViewHref('databases'), 'label' => $text_dashboard_databases, 'icon' => 'database'],
+            ['view' => 'install-uuid', 'href' => buildDashboardViewHref('install-uuid'), 'label' => $text_dashboard_install_uuid, 'icon' => 'fingerprint'],
+            ['view' => 'installer', 'href' => buildDashboardViewHref('installer'), 'label' => $text_dashboard_installer, 'icon' => 'wrench'],
         ];
         $navLinks = '';
         foreach ($navItems as $navItem) {

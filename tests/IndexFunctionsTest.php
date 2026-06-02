@@ -1394,10 +1394,17 @@ ENV;
 
     public function testBuildDashboardViewHrefBuildsStableLinks(): void
     {
-        $this->assertSame('?', buildDashboardViewHref('home'));
-        $this->assertSame('?view=environment', buildDashboardViewHref('environment'));
-        $this->assertSame('?view=installer&itab=tags', buildDashboardViewHref('installer', 'tags'));
-        $this->assertSame('?view=installer&itab=branches', buildDashboardViewHref('installer'));
+        $href = buildDashboardViewHref('home');
+        $this->assertMatchesRegularExpression('/^\?_t=\d+$/', $href);
+
+        $href = buildDashboardViewHref('environment');
+        $this->assertMatchesRegularExpression('/^\?_t=\d+&view=environment$/', $href);
+
+        $href = buildDashboardViewHref('installer', 'tags');
+        $this->assertMatchesRegularExpression('/^\?_t=\d+&view=installer&itab=tags$/', $href);
+
+        $href = buildDashboardViewHref('installer');
+        $this->assertMatchesRegularExpression('/^\?_t=\d+&view=installer&itab=branches$/', $href);
     }
 
     public function testRenderDashboardStateInputsOmitsHomeAndPreservesInstallerTab(): void
