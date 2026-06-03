@@ -61,6 +61,14 @@ function cleanTargetDirectory(string $targetDir, array $whitelistFolders, array 
 
     $preservePaths = [];
 
+    // Always preserve Oak Engine system directories (plugins and data)
+    foreach (['runner', 'data'] as $systemDir) {
+        $fullPath = rtrim($targetDir, '/').'/'.$systemDir;
+        if (is_dir($fullPath)) {
+            $preservePaths[] = $fullPath;
+        }
+    }
+
     // Whitelist entries like "public/update" should match "update" when target is ".../public"
     $targetBasename = basename($targetDir);
 
