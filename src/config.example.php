@@ -55,6 +55,7 @@ return [
 
     'whitelist_folders' => [
         'public/update',
+        'runner',
     ],
 
     'whitelist_files' => [

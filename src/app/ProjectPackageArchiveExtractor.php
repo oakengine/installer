@@ -209,6 +209,12 @@ final class ProjectPackageArchiveExtractor
                 if (!createDirectoryTree($targetDirectoryPath, 0o755)) {
                     throw new \RuntimeException(sprintf('Unable to create directory "%s".', $targetDirectoryPath));
                 }
+            } elseif (!is_writable($targetDirectoryPath)) {
+                @chmod($targetDirectoryPath, 0o755);
+            }
+
+            if (file_exists($targetPath) && !is_writable($targetPath)) {
+                @chmod($targetPath, 0o644);
             }
 
             if (!copy($absolutePath, $targetPath)) {
