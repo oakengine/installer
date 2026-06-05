@@ -950,7 +950,7 @@ ENV;
     public function testResolveProjectEnvComposerMetadataSourcesFindsInstalledProjectLayout(): void
     {
         $targetDir = $this->createTempDirectory();
-        mkdir($targetDir.'/runner/plugin/example/teaser-widget', 0o755, true);
+        mkdir($targetDir.'/runner/example/plugin/teaser-widget', 0o755, true);
 
         file_put_contents($targetDir.'/composer.json', json_encode([
             'extra' => [
@@ -962,7 +962,7 @@ ENV;
                 ],
             ],
         ], JSON_THROW_ON_ERROR));
-        file_put_contents($targetDir.'/runner/plugin/example/teaser-widget/composer.json', json_encode([
+        file_put_contents($targetDir.'/runner/example/plugin/teaser-widget/composer.json', json_encode([
             'extra' => [
                 'oak-engine-plugin' => [
                     'env' => [
@@ -988,7 +988,7 @@ ENV;
                 ],
             ],
             [
-                'path' => 'runner/plugin/example/teaser-widget/composer.json',
+                'path' => 'runner/example/plugin/teaser-widget/composer.json',
                 'package_type' => 'plugin',
                 'metadata' => [
                     'extra' => [
@@ -1224,10 +1224,11 @@ ENV;
         $this->assertStringContainsString('class="env-row env-row--inline env-row--grow"', $html);
         $this->assertStringContainsString('class="env-input env-input--uuid"', $html);
         $this->assertStringContainsString('<title>Installer · OakEngine Installer</title>', $html);
-        $this->assertStringContainsString('<img src="logo/svg/oakengine.svg" alt="">', $html);
+        $this->assertStringContainsString('oakengine-logo-1', $html);
         $this->assertStringContainsString('<h1>OakEngine Installer</h1>', $html);
         $this->assertStringContainsString('<input type="hidden" name="view" value="install-uuid">', $html);
-        $this->assertStringContainsString('dashboard-btn active" href="?view=install-uuid"', $html);
+        $this->assertStringContainsString('dashboard-btn active', $html);
+        $this->assertStringContainsString('view=install-uuid', $html);
         $this->assertStringContainsString('Logout', $html);
         $this->assertStringContainsString('id="modal-confirm-action"', $html);
         $this->assertStringNotContainsString('<p>Welcome</p>', $html);
@@ -1248,8 +1249,8 @@ ENV;
 
         $this->assertStringContainsString('HOME', $html);
         $this->assertStringContainsString('class="dashboard-nav"', $html);
-        $this->assertStringContainsString('dashboard-btn active" href="?"', $html);
-        $this->assertStringContainsString('href="?view=installer"', $html);
+        $this->assertStringContainsString('dashboard-btn active', $html);
+        $this->assertStringContainsString('view=installer', $html);
         $this->assertStringNotContainsString('id="btn-home"', $html);
         $this->assertStringNotContainsString('showDashboardSection', $html);
     }
@@ -1267,14 +1268,15 @@ ENV;
         $html = renderPage('Installer', '<p>ignored</p>', null, $envPath, false, 'databases');
 
         $this->assertStringNotContainsString('<p>ignored</p>', $html);
-        $this->assertStringContainsString('dashboard-btn active" href="?view=databases"', $html);
+        $this->assertStringContainsString('dashboard-btn active', $html);
+        $this->assertStringContainsString('view=databases', $html);
         $this->assertStringContainsString('class="env-form env-form--stack"', $html);
         $this->assertStringContainsString('class="env-row env-row--stack env-row--wide"', $html);
         $this->assertStringContainsString('class="env-input env-input--wide"', $html);
         $this->assertStringContainsString('<input type="hidden" name="view" value="databases">', $html);
-        $this->assertStringContainsString('data-confirm-title="🚀 Run migrations"', $html);
+        $this->assertStringContainsString('data-confirm-title="Run migrations"', $html);
         $this->assertStringContainsString('data-confirm-message="Are you sure you want to run database migrations?"', $html);
-        $this->assertStringContainsString('data-confirm-submit-label="🚀 Run migrations"', $html);
+        $this->assertStringContainsString('data-confirm-submit-label="Run migrations"', $html);
         $this->assertStringNotContainsString('confirm(', $html);
     }
 

@@ -342,12 +342,10 @@ function resolveProjectEnvComposerMetadataSources(string $targetDir): array
     $patternsByPackageType = [
         'runner' => [
             $scanDir.'/runner/*/core/*/*/composer.json',
-            $scanDir.'/runner/core/*/*/composer.json',
             $scanDir.'/runner/*/core/*/composer.json',
         ],
         'plugin' => [
             $scanDir.'/runner/*/plugin/*/*/composer.json',
-            $scanDir.'/runner/plugin/*/*/composer.json',
             $scanDir.'/runner/*/plugin/*/composer.json',
         ],
     ];
