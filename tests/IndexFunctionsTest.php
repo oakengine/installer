@@ -1003,6 +1003,85 @@ ENV;
         ], resolveProjectEnvComposerMetadataSources($targetDir));
     }
 
+    public function testResolveProjectEnvComposerMetadataSourcesFindsFlatPluginCoreLayout(): void
+    {
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/runner/core/index-bundle', 0o755, true);
+        mkdir($targetDir.'/runner/plugin/teaser-widget', 0o755, true);
+        mkdir($targetDir.'/runner/plugin/example/no-env', 0o755, true);
+        mkdir($targetDir.'/runner/invalid/example/index-bundle', 0o755, true);
+
+        file_put_contents($targetDir.'/runner/core/index-bundle/composer.json', json_encode([
+            'extra' => [
+                'oak-engine-plugin' => [
+                    'env' => [
+                        'dir' => 'homanit',
+                        'core-bundle-class' => 'Oak\\Core\\IndexBundle\\IndexBundle',
+                        'language-version' => '1',
+                        'default-language' => 'de',
+                        'available-languages' => 'de',
+                        'default-language-redirect' => '0',
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($targetDir.'/runner/plugin/teaser-widget/composer.json', json_encode([
+            'extra' => [
+                'oak-engine-plugin' => [
+                    'env' => [
+                        'default-language' => 'en',
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($targetDir.'/runner/plugin/example/no-env/composer.json', json_encode([
+            'name' => 'oak/empty-plugin',
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($targetDir.'/runner/invalid/example/index-bundle/composer.json', json_encode([
+            'extra' => [
+                'oak-engine-plugin' => [
+                    'env' => [
+                        'dir' => 'ignored',
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame([
+            [
+                'path' => 'runner/core/index-bundle/composer.json',
+                'package_type' => 'runner',
+                'metadata' => [
+                    'extra' => [
+                        'oak-engine-plugin' => [
+                            'env' => [
+                                'dir' => 'homanit',
+                                'core-bundle-class' => 'Oak\\Core\\IndexBundle\\IndexBundle',
+                                'language-version' => '1',
+                                'default-language' => 'de',
+                                'available-languages' => 'de',
+                                'default-language-redirect' => '0',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'path' => 'runner/plugin/teaser-widget/composer.json',
+                'package_type' => 'plugin',
+                'metadata' => [
+                    'extra' => [
+                        'oak-engine-plugin' => [
+                            'env' => [
+                                'default-language' => 'en',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ], resolveProjectEnvComposerMetadataSources($targetDir));
+    }
+
     public function testSyncPackageEnvComposerMetadataSourcesToEnvLocalDetailedMergesVariables(): void
     {
         $envPath = $this->createTempDirectory().'/.env.local';
