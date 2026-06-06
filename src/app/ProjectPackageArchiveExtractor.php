@@ -9,8 +9,6 @@ final class ProjectPackageArchiveExtractor
     /**
      * @param array<string> $excludeFolders
      * @param array<string> $excludeFiles
-     * @param array<string> $whitelistFolders
-     * @param array<string> $whitelistFiles
      *
      * @return array{
      *     extracted: list<string>,
@@ -23,8 +21,6 @@ final class ProjectPackageArchiveExtractor
         string $targetDir,
         array $excludeFolders,
         array $excludeFiles,
-        array $whitelistFolders,
-        array $whitelistFiles,
     ): array {
         $tempDirectory = sys_get_temp_dir().'/project_package_'.bin2hex(random_bytes(8));
         if (!createDirectoryTree($tempDirectory, 0o755)) {
@@ -58,8 +54,6 @@ final class ProjectPackageArchiveExtractor
                 $targetDir,
                 $excludeFolders,
                 $excludeFiles,
-                $whitelistFolders,
-                $whitelistFiles,
             );
         } finally {
             $this->recursiveDelete($tempDirectory);
@@ -86,8 +80,6 @@ final class ProjectPackageArchiveExtractor
     /**
      * @param array<string> $excludeFolders
      * @param array<string> $excludeFiles
-     * @param array<string> $whitelistFolders
-     * @param array<string> $whitelistFiles
      *
      * @return array{extracted: list<string>, skipped_files: list<string>, skipped_folders: list<string>}
      */
@@ -96,15 +88,10 @@ final class ProjectPackageArchiveExtractor
         string $targetDir,
         array $excludeFolders,
         array $excludeFiles,
-        array $whitelistFolders,
-        array $whitelistFiles,
     ): array {
         $extractedFiles = [];
         $skippedFiles = [];
         $skippedFolders = [];
-        $hasWhitelistFolders = [] !== $whitelistFolders;
-        $hasWhitelistFiles = [] !== $whitelistFiles;
-        $targetBasename = basename($targetDir);
 
         $iterator = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($sourceDir, \FilesystemIterator::SKIP_DOTS),
@@ -126,43 +113,6 @@ final class ProjectPackageArchiveExtractor
             $parentDir = dirname($relativePathNormalized);
             if ('.' === $parentDir) {
                 $parentDir = '';
-            }
-
-            $isInWhitelist = false;
-            if ($hasWhitelistFolders) {
-                foreach ($whitelistFolders as $whitelistFolder) {
-                    $whitelistNormalized = trim(str_replace('\\', '/', $whitelistFolder), '/');
-                    $whitelistParent = dirname($whitelistNormalized);
-                    $matchPath = $relativePathNormalized;
-                    if ($whitelistParent === $targetBasename || '.' === $whitelistParent) {
-                        $matchPath = $targetBasename.'/'.$relativePathNormalized;
-                    }
-
-                    if ($matchPath === $whitelistNormalized || str_starts_with($matchPath, $whitelistNormalized.'/')) {
-                        $isInWhitelist = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!$isInWhitelist && $hasWhitelistFiles && !$item->isDir()) {
-                foreach ($whitelistFiles as $whitelistFile) {
-                    $whitelistNormalized = trim(str_replace('\\', '/', $whitelistFile), '/');
-                    if ($relativePathNormalized === $whitelistNormalized) {
-                        $isInWhitelist = true;
-                        break;
-                    }
-                }
-            }
-
-            if ($isInWhitelist) {
-                if ($item->isDir()) {
-                    $skippedFolders[] = $relativePath;
-                } else {
-                    $skippedFiles[] = $relativePath;
-                }
-
-                continue;
             }
 
             if ($item->isDir()) {

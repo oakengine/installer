@@ -128,7 +128,10 @@ function resolveInstalledPackages(string $targetDir, string $packageType): array
         'data' => 'oak-engine-data',
         default => 'oak-engine-runner',
     };
-    $scanDir = resolvePackageInstallTargetDir($targetDir, $normalizedPackageType);
+    $scanDir = rtrim($targetDir, '/');
+    if ('runner' !== $normalizedPackageType) {
+        $scanDir .= '/'.('plugin' === $normalizedPackageType ? 'runner' : 'data');
+    }
 
     if (!is_dir($scanDir)) {
         return [];
@@ -207,31 +210,44 @@ function resolveInstalledPackages(string $targetDir, string $packageType): array
 
 function resolveInstalledPackageDisplayName(string $composerName, string $packageDirectory, string $targetDir): string
 {
+    $normalizedTargetDir = rtrim(str_replace('\\', '/', $targetDir), '/');
+    $normalizedPackageDirectory = str_replace('\\', '/', $packageDirectory);
+
+    if (str_starts_with($normalizedPackageDirectory, $normalizedTargetDir.'/')) {
+        $relativePath = substr($normalizedPackageDirectory, strlen($normalizedTargetDir) + 1);
+        if ('' !== $relativePath) {
+            $parts = explode('/', $relativePath);
+
+            return $parts[0];
+        }
+    }
+
     if ('' !== $composerName) {
         $normalizedName = str_replace('\\', '/', $composerName);
 
         return basename($normalizedName);
     }
 
-    $normalizedTargetDir = rtrim(str_replace('\\', '/', $targetDir), '/');
-    $normalizedPackageDirectory = str_replace('\\', '/', $packageDirectory);
-    if (str_starts_with($normalizedPackageDirectory, $normalizedTargetDir.'/')) {
-        $relativePath = substr($normalizedPackageDirectory, strlen($normalizedTargetDir) + 1);
-        if ('' !== $relativePath) {
-            return $relativePath;
-        }
-    }
-
     return basename($packageDirectory);
 }
 
-function resolvePackageInstallTargetDir(string $targetDir, string $packageType): string
+function resolvePackageInstallTargetDir(string $targetDir, string $packageType, string $packageDir = ''): string
 {
     $normalizedTargetDir = rtrim($targetDir, '/');
+    $normalizedType = normalizePackageType($packageType);
 
-    return match (normalizePackageType($packageType)) {
-        'plugin' => $normalizedTargetDir.'/runner',
-        'data' => $normalizedTargetDir.'/data',
+    if ('runner' === $normalizedType) {
+        return $normalizedTargetDir;
+    }
+
+    $normalizedPackageDir = trim($packageDir, '/');
+    if ('' === $normalizedPackageDir) {
+        throw new \InvalidArgumentException(sprintf('A package directory is required for %s packages.', $normalizedType));
+    }
+
+    return match ($normalizedType) {
+        'plugin' => $normalizedTargetDir.'/runner/'.$normalizedPackageDir,
+        'data' => $normalizedTargetDir.'/data/'.$normalizedPackageDir,
         default => $normalizedTargetDir,
     };
 }
@@ -245,4 +261,32 @@ function normalizePackageType(mixed $value): string
     $normalized = trim((string) $value);
 
     return in_array($normalized, ['runner', 'plugin', 'data'], true) ? $normalized : 'runner';
+}
+
+/**
+ * @param array<string, mixed> $composerMetadata
+ */
+function resolvePackageInstallDirFromMetadata(array $composerMetadata, string $packageType): string
+{
+    $envConfig = extractPackageEnvConfig($composerMetadata, $packageType);
+    $dir = $envConfig['dir'] ?? null;
+    if (is_string($dir)) {
+        $normalized = trim($dir);
+        if ('' !== $normalized) {
+            return $normalized;
+        }
+    }
+
+    $composerName = $composerMetadata['name'] ?? null;
+    if (is_string($composerName)) {
+        $normalized = trim(str_replace('\\', '/', $composerName));
+        if ('' !== $normalized) {
+            $basename = basename($normalized);
+            if ('' !== $basename) {
+                return $basename;
+            }
+        }
+    }
+
+    throw new \RuntimeException(sprintf('Cannot determine install directory for %s package (missing env.dir and composer name).', $packageType));
 }

@@ -108,68 +108,105 @@ final class IndexFunctionsTest extends TestCase
     public function testResolveInstalledPackagesFindsMultiplePluginAndDataEntries(): void
     {
         $targetDir = $this->createTempDirectory();
-        mkdir($targetDir.'/runner/vendor-one/example-plugin', 0o755, true);
-        mkdir($targetDir.'/runner/vendor-two/second-plugin', 0o755, true);
-        mkdir($targetDir.'/data/acme/example-data', 0o755, true);
+        mkdir($targetDir.'/runner/example/core/index-bundle', 0o755, true);
+        mkdir($targetDir.'/runner/example/plugin/contact-panel', 0o755, true);
+        mkdir($targetDir.'/runner/homanit/core/index-bundle', 0o755, true);
+        mkdir($targetDir.'/data/example', 0o755, true);
+        mkdir($targetDir.'/data/homanit', 0o755, true);
         mkdir($targetDir.'/vendor/vendor/package', 0o755, true);
 
-        file_put_contents(
-            $targetDir.'/runner/vendor-one/example-plugin/composer.json',
-            json_encode([
-                'name' => 'acme/example-plugin',
-                'extra' => [
-                    'oak-engine-plugin' => [
-                        'version' => '1.2.3',
-                        'channel' => 'stable',
+        $pluginComposer = static fn (string $name, string $dir, string $version, string $channel): string => json_encode([
+            'name' => $name,
+            'extra' => [
+                'oak-engine-plugin' => [
+                    'version' => $version,
+                    'channel' => $channel,
+                    'env' => [
+                        'dir' => $dir,
                     ],
                 ],
-            ], JSON_THROW_ON_ERROR)
-        );
-        file_put_contents(
-            $targetDir.'/runner/vendor-two/second-plugin/composer.json',
-            json_encode([
-                'name' => 'acme/second-plugin',
-                'extra' => [
-                    'oak-engine-plugin' => [
-                        'version' => '2.0.0',
-                        'channel' => 'beta',
-                    ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        file_put_contents($targetDir.'/runner/example/core/index-bundle/composer.json', $pluginComposer('oakengine/oak-example', 'example', '1.0.0', 'stable'));
+        file_put_contents($targetDir.'/runner/example/plugin/contact-panel/composer.json', $pluginComposer('oakengine/oak-example', 'example', '1.0.0', 'stable'));
+        file_put_contents($targetDir.'/runner/homanit/core/index-bundle/composer.json', $pluginComposer('oakengine/plugin-homanit', 'homanit', '2.0.0', 'beta'));
+
+        $dataComposer = static fn (string $name, string $version, string $channel): string => json_encode([
+            'name' => $name,
+            'extra' => [
+                'oak-engine-data' => [
+                    'version' => $version,
+                    'channel' => $channel,
                 ],
-            ], JSON_THROW_ON_ERROR)
-        );
-        file_put_contents(
-            $targetDir.'/data/acme/example-data/composer.json',
-            json_encode([
-                'name' => 'acme/example-data',
-                'extra' => [
-                    'oak-engine-data' => [
-                        'version' => '3.1.0',
-                        'channel' => 'stable',
-                    ],
-                ],
-            ], JSON_THROW_ON_ERROR)
-        );
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        file_put_contents($targetDir.'/data/example/composer.json', $dataComposer('oakengine/example', '1.0.0', 'stable'));
+        file_put_contents($targetDir.'/data/homanit/composer.json', $dataComposer('oakengine/homanit', '2.0.0', 'beta'));
+
         file_put_contents(
             $targetDir.'/vendor/vendor/package/composer.json',
-            json_encode([
-                'name' => 'vendor/package',
-            ], JSON_THROW_ON_ERROR)
+            json_encode(['name' => 'vendor/package'], JSON_THROW_ON_ERROR)
         );
 
         $this->assertSame([
-            ['name' => 'example-plugin', 'version' => '1.2.3', 'channel' => 'stable'],
-            ['name' => 'second-plugin', 'version' => '2.0.0', 'channel' => 'beta'],
+            ['name' => 'example', 'version' => '1.0.0', 'channel' => 'stable'],
+            ['name' => 'homanit', 'version' => '2.0.0', 'channel' => 'beta'],
         ], resolveInstalledPackages($targetDir, 'plugin'));
         $this->assertSame([
-            ['name' => 'example-data', 'version' => '3.1.0', 'channel' => 'stable'],
+            ['name' => 'example', 'version' => '1.0.0', 'channel' => 'stable'],
+            ['name' => 'homanit', 'version' => '2.0.0', 'channel' => 'beta'],
         ], resolveInstalledPackages($targetDir, 'data'));
     }
 
     public function testResolvePackageInstallTargetDir(): void
     {
         $this->assertSame('/var/project', resolvePackageInstallTargetDir('/var/project', 'runner'));
-        $this->assertSame('/var/project/runner', resolvePackageInstallTargetDir('/var/project/', 'plugin'));
-        $this->assertSame('/var/project/data', resolvePackageInstallTargetDir('/var/project', 'data'));
+        $this->assertSame('/var/project/runner/example', resolvePackageInstallTargetDir('/var/project', 'plugin', 'example'));
+        $this->assertSame('/var/project/data/example', resolvePackageInstallTargetDir('/var/project/', 'data', 'example'));
+    }
+
+    public function testResolvePackageInstallTargetDirThrowsForMissingPluginDataDir(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        resolvePackageInstallTargetDir('/var/project', 'plugin');
+    }
+
+    public function testResolvePackageInstallDirFromMetadataPrefersEnvDir(): void
+    {
+        $metadata = [
+            'name' => 'oakengine/oak-example',
+            'extra' => [
+                'oak-engine-plugin' => [
+                    'env' => [
+                        'dir' => 'example',
+                    ],
+                ],
+            ],
+        ];
+
+        $this->assertSame('example', resolvePackageInstallDirFromMetadata($metadata, 'plugin'));
+    }
+
+    public function testResolvePackageInstallDirFromMetadataFallsBackToComposerName(): void
+    {
+        $metadata = [
+            'name' => 'oakengine/example',
+            'extra' => [
+                'oak-engine-data' => [
+                    'version' => '1.0.0',
+                ],
+            ],
+        ];
+
+        $this->assertSame('example', resolvePackageInstallDirFromMetadata($metadata, 'data'));
+    }
+
+    public function testResolvePackageInstallDirFromMetadataThrowsWhenUnresolved(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        resolvePackageInstallDirFromMetadata([], 'plugin');
     }
 
     public function testNormalizePackageType(): void
@@ -604,25 +641,29 @@ final class IndexFunctionsTest extends TestCase
         $this->assertDirectoryDoesNotExist($cacheDir);
     }
 
-    public function testCleanTargetDirectoryPreservesWhitelistedEntries(): void
+    public function testCleanTargetDirectoryPreservesCriticalPaths(): void
     {
-        $targetDir = $this->createTempDirectory().'/public';
-        mkdir($targetDir.'/update', 0o755, true);
-        file_put_contents($targetDir.'/update/keep.txt', 'keep');
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/public/update', 0o755, true);
+        file_put_contents($targetDir.'/public/update/keep.txt', 'keep');
         file_put_contents($targetDir.'/.env.local', 'APP_ENV=prod');
         file_put_contents($targetDir.'/remove.txt', 'remove');
+        mkdir($targetDir.'/runner', 0o755, true);
+        file_put_contents($targetDir.'/runner/keep.txt', 'plugins-keep');
 
-        $result = cleanTargetDirectory($targetDir, ['public/update'], ['.env.local']);
+        $result = cleanTargetDirectory($targetDir);
 
         $this->assertSame(1, $result['deleted_count']);
-        $this->assertContains('update/keep.txt', $result['preserved']);
+        $this->assertContains('public/update/keep.txt', $result['preserved']);
         $this->assertContains('.env.local', $result['preserved']);
-        $this->assertFileExists($targetDir.'/update/keep.txt');
+        $this->assertContains('runner/keep.txt', $result['preserved']);
+        $this->assertFileExists($targetDir.'/public/update/keep.txt');
         $this->assertFileExists($targetDir.'/.env.local');
+        $this->assertFileExists($targetDir.'/runner/keep.txt');
         $this->assertFileDoesNotExist($targetDir.'/remove.txt');
     }
 
-    public function testExtractZipHonorsExcludeAndWhitelistRules(): void
+    public function testExtractZipHonorsExcludeRulesOnly(): void
     {
         $targetDir = $this->createTempDirectory();
         file_put_contents($targetDir.'/.env.local', 'keep-me');
@@ -631,21 +672,18 @@ final class IndexFunctionsTest extends TestCase
             $this->createZipArchive([
                 'app/file.txt' => 'copied',
                 'docs/readme.md' => 'skip-folder',
-                '.env.local' => 'do-not-overwrite',
+                '.env.local' => 'overwrite-attempt',
                 'README.md' => 'skip-file',
             ]),
             $targetDir,
             ['docs'],
-            ['README.md'],
-            [],
-            ['.env.local']
+            ['README.md']
         );
 
-        $this->assertSame(['app/file.txt'], $result['extracted']);
-        $this->assertContains('.env.local', $result['skipped_files']);
+        $this->assertEqualsCanonicalizing(['app/file.txt', '.env.local'], $result['extracted']);
         $this->assertContains('docs', $result['skipped_folders']);
         $this->assertContains('README.md', $result['skipped_files']);
-        $this->assertSame('keep-me', file_get_contents($targetDir.'/.env.local'));
+        $this->assertSame('overwrite-attempt', file_get_contents($targetDir.'/.env.local'));
         $this->assertSame('copied', file_get_contents($targetDir.'/app/file.txt'));
     }
 
@@ -658,8 +696,6 @@ final class IndexFunctionsTest extends TestCase
                 'app/file.txt' => 'copied',
             ]),
             $targetDir,
-            [],
-            [],
             [],
             []
         );

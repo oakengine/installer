@@ -45,12 +45,9 @@ function clearCacheDirectory(string $cacheDir): array
 }
 
 /**
- * @param array<string> $whitelistFolders
- * @param array<string> $whitelistFiles
- *
  * @return array{deleted_count: int, preserved: array<string>}
  */
-function cleanTargetDirectory(string $targetDir, array $whitelistFolders, array $whitelistFiles): array
+function cleanTargetDirectory(string $targetDir): array
 {
     $preserved = [];
     $deletedCount = 0;
@@ -69,43 +66,11 @@ function cleanTargetDirectory(string $targetDir, array $whitelistFolders, array 
         }
     }
 
-    // Whitelist entries like "public/update" should match "update" when target is ".../public"
-    $targetBasename = basename($targetDir);
-
-    foreach ($whitelistFolders as $folder) {
-        $folderNormalized = trim(str_replace('\\', '/', $folder), '/');
-        $folderBasename = basename($folderNormalized);
-        $folderParent = dirname($folderNormalized);
-
-        // Match if whitelist parent matches target dir name, or try direct path
-        if ($folderParent === $targetBasename || '.' === $folderParent) {
-            $fullPath = rtrim($targetDir, '/').'/'.$folderBasename;
-            if (is_dir($fullPath)) {
-                $preservePaths[] = $fullPath;
-            }
-        } else {
-            $fullPath = rtrim($targetDir, '/').'/'.$folderNormalized;
-            if (is_dir($fullPath)) {
-                $preservePaths[] = $fullPath;
-            }
-        }
-    }
-
-    foreach ($whitelistFiles as $file) {
-        $fileNormalized = trim(str_replace('\\', '/', $file), '/');
-        $fileBasename = basename($fileNormalized);
-        $fileParent = dirname($fileNormalized);
-
-        if ($fileParent === $targetBasename || '.' === $fileParent) {
-            $fullPath = rtrim($targetDir, '/').'/'.$fileBasename;
-            if (is_file($fullPath)) {
-                $preservePaths[] = $fullPath;
-            }
-        } else {
-            $fullPath = rtrim($targetDir, '/').'/'.$fileNormalized;
-            if (is_file($fullPath)) {
-                $preservePaths[] = $fullPath;
-            }
+    // Always preserve the installer itself and the runtime env file
+    foreach (['public/update', '.env.local'] as $criticalPath) {
+        $fullPath = rtrim($targetDir, '/').'/'.$criticalPath;
+        if (file_exists($fullPath)) {
+            $preservePaths[] = $fullPath;
         }
     }
 
@@ -150,12 +115,10 @@ function cleanTargetDirectory(string $targetDir, array $whitelistFolders, array 
 /**
  * @param array<string> $excludeFolders
  * @param array<string> $excludeFiles
- * @param array<string> $whitelistFolders
- * @param array<string> $whitelistFiles
  *
  * @return array{extracted: array<string>, skipped_files: array<string>, skipped_folders: array<string>}
  */
-function extractZip(string $zipContent, string $targetDir, array $excludeFolders, array $excludeFiles, array $whitelistFolders, array $whitelistFiles): array
+function extractZip(string $zipContent, string $targetDir, array $excludeFolders, array $excludeFiles): array
 {
     $tempFile = tempnam(sys_get_temp_dir(), 'oak_installer_');
     file_put_contents($tempFile, $zipContent);
@@ -184,10 +147,6 @@ function extractZip(string $zipContent, string $targetDir, array $excludeFolders
             RecursiveIteratorIterator::SELF_FIRST
         );
 
-        $hasWhitelistFolders = !empty($whitelistFolders);
-        $hasWhitelistFiles = !empty($whitelistFiles);
-        $targetBasename = basename($targetDir);
-
         foreach ($iterator as $item) {
             if (!$item instanceof SplFileInfo) {
                 continue;
@@ -204,49 +163,6 @@ function extractZip(string $zipContent, string $targetDir, array $excludeFolders
                 $parentDir = '';
             }
 
-            // Check if this path is in whitelist (should be skipped to preserve existing)
-            $isInWhitelist = false;
-
-            if ($hasWhitelistFolders) {
-                foreach ($whitelistFolders as $wlFolder) {
-                    $wlNormalized = trim(str_replace('\\', '/', $wlFolder), '/');
-                    $wlBasename = basename($wlNormalized);
-                    $wlParent = dirname($wlNormalized);
-
-                    // Match relative path against whitelist (accounting for parent dir)
-                    $matchPath = $relativePathNormalized;
-                    if ($wlParent === $targetBasename || '.' === $wlParent) {
-                        $matchPath = $targetBasename.'/'.$relativePathNormalized;
-                    }
-
-                    if ($matchPath === $wlNormalized || str_starts_with($matchPath, $wlNormalized.'/')) {
-                        $isInWhitelist = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!$isInWhitelist && $hasWhitelistFiles && !$item->isDir()) {
-                foreach ($whitelistFiles as $wlFile) {
-                    $wlNormalized = trim(str_replace('\\', '/', $wlFile), '/');
-                    if ($relativePathNormalized === $wlNormalized) {
-                        $isInWhitelist = true;
-                        break;
-                    }
-                }
-            }
-
-            // Skip whitelisted items (preserve existing)
-            if ($isInWhitelist) {
-                if ($item->isDir()) {
-                    $skippedFolders[] = $relativePath;
-                } else {
-                    $skippedFiles[] = $relativePath;
-                }
-                continue;
-            }
-
-            // Always check exclude folders/files
             if ($item->isDir()) {
                 foreach ($excludeFolders as $excludeFolder) {
                     $excludeNormalized = trim(str_replace('\\', '/', $excludeFolder), '/');
@@ -264,7 +180,6 @@ function extractZip(string $zipContent, string $targetDir, array $excludeFolders
                 continue;
             }
 
-            // Check if parent dir is in exclude list
             if ('' !== $parentDir) {
                 foreach ($excludeFolders as $excludeFolder) {
                     $excludeNormalized = trim(str_replace('\\', '/', $excludeFolder), '/');
@@ -275,7 +190,6 @@ function extractZip(string $zipContent, string $targetDir, array $excludeFolders
                 }
             }
 
-            // Check exclude files
             $fileName = basename($relativePathNormalized);
             foreach ($excludeFiles as $excludeFile) {
                 $excludeNormalized = trim(str_replace('\\', '/', $excludeFile), '/');
@@ -285,7 +199,6 @@ function extractZip(string $zipContent, string $targetDir, array $excludeFolders
                 }
             }
 
-            // Extract file
             $targetPath = rtrim($targetDir, '/').'/'.$relativePath;
             $targetDirPath = dirname($targetPath);
             if (!is_dir($targetDirPath)) {

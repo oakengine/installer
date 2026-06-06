@@ -41,7 +41,6 @@ Ein leichtgewichtiges PHP-Installationswerkzeug fuer Oak-Engine-Deployments. Die
 | `password` | Optionales UI-Passwort als Klartext oder Hash. |
 | `updater_source_path` | Quellpfad innerhalb des Installer-Repositories fuer Self-Updates. |
 | `exclude_folders` / `exclude_files` | Dateien und Ordner, die nie ins Zielverzeichnis extrahiert werden duerfen. |
-| `whitelist_folders` / `whitelist_files` | Dateien und Ordner, die bei einer Runner-Installation erhalten bleiben muessen. |
 | `default_language` | Fallback-Sprache der Oberflaeche. |
 
 ## Erwartetes Endpoint-Format

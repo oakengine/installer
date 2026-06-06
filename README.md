@@ -41,7 +41,6 @@ A lightweight PHP installer for OakEngine deployments. The project installation 
 | `password` | Optional UI password, plain text or password hash. |
 | `updater_source_path` | Source path inside the installer repository used during self-update. |
 | `exclude_folders` / `exclude_files` | Files and folders that must never be extracted into the target directory. |
-| `whitelist_folders` / `whitelist_files` | Files and folders that must be preserved during runner installation. |
 | `default_language` | UI language fallback. |
 
 ## Package endpoint contract

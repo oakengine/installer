@@ -134,30 +134,6 @@ final class InstallerApplication
                 }
             }
 
-            $rawWhitelistFolders = $config['whitelist_folders'] ?? [];
-            /** @var array<string> $whitelistFolders */
-            $whitelistFolders = [];
-            if (is_array($rawWhitelistFolders)) {
-                foreach ($rawWhitelistFolders as $val) {
-                    $valStr = (is_scalar($val)) ? (string) $val : '';
-                    if ('' !== $valStr) {
-                        $whitelistFolders[] = $valStr;
-                    }
-                }
-            }
-
-            $rawWhitelistFiles = $config['whitelist_files'] ?? [];
-            /** @var array<string> $whitelistFiles */
-            $whitelistFiles = [];
-            if (is_array($rawWhitelistFiles)) {
-                foreach ($rawWhitelistFiles as $val) {
-                    $valStr = (is_scalar($val)) ? (string) $val : '';
-                    if ('' !== $valStr) {
-                        $whitelistFiles[] = $valStr;
-                    }
-                }
-            }
-
             $envPath = null;
             $projectApiUrl = '';
             if (isset($config['project_api_url']) && (is_string($config['project_api_url']) || is_int($config['project_api_url']))) {
@@ -449,21 +425,21 @@ final class InstallerApplication
                     default => $runnerClient,
                 };
 
-                $cleanResult = ['deleted_count' => 0, 'preserved' => []];
-                if ('runner' === $packageType) {
-                    $cleanResult = cleanTargetDirectory((string) $targetDirStr, $whitelistFolders, $whitelistFiles);
-                }
-
                 $package = $packageClient->getPackage($packageId, '' !== $packageVersion ? $packageVersion : null);
                 $packageContent = $packageClient->downloadPackage($package['package_id'], $package['version']);
-                $packageTargetDir = resolvePackageInstallTargetDir((string) $targetDirStr, $packageType);
+
+                $packageDir = 'runner' === $packageType
+                    ? ''
+                    : resolvePackageInstallDirFromMetadata(is_array($package['composer'] ?? null) ? $package['composer'] : [], $packageType);
+                $packageTargetDir = resolvePackageInstallTargetDir((string) $targetDirStr, $packageType, $packageDir);
+
+                $cleanResult = cleanTargetDirectory($packageTargetDir);
+
                 $extractZipResult = $archiveExtractor->extractTarGz(
                     $packageContent,
                     $packageTargetDir,
                     $excludeFolders,
                     $excludeFiles,
-                    $whitelistFolders,
-                    $whitelistFiles,
                 );
                 $envPath = rtrim((string) $targetDirStr, '/').'/.env.local';
                 $composerMetadataSources = resolveProjectEnvComposerMetadataSources((string) $targetDirStr);
@@ -625,20 +601,6 @@ final class InstallerApplication
                     'value' => '<code>'.htmlspecialchars($targetDirStr).'</code>',
                 ],
             ];
-
-            if (!empty($whitelistFolders) || !empty($whitelistFiles)) {
-                $wlItems = array_merge($whitelistFolders, $whitelistFiles);
-                /** @var list<string> $wlItemsString */
-                $wlItemsString = array_values(array_map(fn ($item) => (string) $item, $wlItems));
-                $wlTitle = resolveLangKey('whitelist_active', $langForGlobal);
-                $wlCountLabel = resolveLangKey('whitelist_count', $langForGlobal, ['count' => count($wlItemsString)]);
-                $wlCloseLabel = resolveLangKey('close', $langForGlobal);
-                $statusItems[] = [
-                    'icon' => 'shield',
-                    'label' => $wlTitle,
-                    'value' => renderWhitelistValue($wlItemsString, $wlCountLabel, $wlTitle, $wlCloseLabel),
-                ];
-            }
 
             $statusOverview = renderStatusOverview($statusItems);
 

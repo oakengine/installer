@@ -53,14 +53,5 @@ return [
         'docker-compose.yml',
     ],
 
-    'whitelist_folders' => [
-        'public/update',
-        'runner',
-    ],
-
-    'whitelist_files' => [
-        '.env.local',
-    ],
-
     'default_language' => 'en',
 ];

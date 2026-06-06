@@ -269,7 +269,6 @@ PHP;
     public function testProjectPackageArchiveExtractorExtractsTarGzPackages(): void
     {
         $targetDir = $this->createTempDirectory();
-        file_put_contents($targetDir.'/.env.local', 'keep');
 
         $extractor = new ProjectPackageArchiveExtractor();
         $result = $extractor->extractTarGz(
@@ -285,22 +284,19 @@ PHP;
                     ],
                 ], JSON_THROW_ON_ERROR),
                 'package-root/docs/readme.md' => 'skip-folder',
-                'package-root/.env.local' => 'skip-file',
+                'package-root/.env.local' => 'from-archive',
                 'package-root/README.md' => 'skip-name',
             ]),
             $targetDir,
             ['docs'],
-            ['README.md'],
-            [],
-            ['.env.local']
+            ['README.md']
         );
 
-        $this->assertSame(['app/file.txt', 'composer.json'], $result['extracted']);
+        $this->assertSame(['app/file.txt', 'composer.json', '.env.local'], $result['extracted']);
         $this->assertContains('docs', $result['skipped_folders']);
-        $this->assertContains('.env.local', $result['skipped_files']);
         $this->assertContains('README.md', $result['skipped_files']);
         $this->assertSame('runner', file_get_contents($targetDir.'/app/file.txt'));
-        $this->assertSame('keep', file_get_contents($targetDir.'/.env.local'));
+        $this->assertSame('from-archive', file_get_contents($targetDir.'/.env.local'));
     }
 
     private static function findFreePort(): int
