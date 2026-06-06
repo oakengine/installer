@@ -28,15 +28,13 @@ final class ProjectPackageArchiveExtractor
         }
 
         $gzFile = $tempDirectory.'/package.tar.gz';
-        $tarFile = $tempDirectory.'/package.tar';
-        $extractionDirectory = $tempDirectory.'/extract';
 
         try {
             if (false === file_put_contents($gzFile, $archiveContent)) {
                 throw new \RuntimeException(sprintf('Unable to write temp archive "%s".', $gzFile));
             }
 
-            return $this->extractGzFileIntoTarget($gzFile, $tarFile, $extractionDirectory, $targetDir, $excludeFolders, $excludeFiles);
+            return $this->extractGzFileIntoTarget($gzFile, $tempDirectory, $targetDir, $excludeFolders, $excludeFiles);
         } finally {
             $this->recursiveDelete($tempDirectory);
         }
@@ -67,11 +65,8 @@ final class ProjectPackageArchiveExtractor
             throw new \RuntimeException(sprintf('Unable to create temp directory "%s".', $tempDirectory));
         }
 
-        $tarFile = $tempDirectory.'/package.tar';
-        $extractionDirectory = $tempDirectory.'/extract';
-
         try {
-            return $this->extractGzFileIntoTarget($archivePath, $tarFile, $extractionDirectory, $targetDir, $excludeFolders, $excludeFiles);
+            return $this->extractGzFileIntoTarget($archivePath, $tempDirectory, $targetDir, $excludeFolders, $excludeFiles);
         } finally {
             $this->recursiveDelete($tempDirectory);
         }
@@ -89,48 +84,17 @@ final class ProjectPackageArchiveExtractor
      */
     private function extractGzFileIntoTarget(
         string $gzFile,
-        string $tarFile,
-        string $extractionDirectory,
+        string $tempDirectory,
         string $targetDir,
         array $excludeFolders,
         array $excludeFiles,
     ): array {
-        $in = fopen($gzFile, 'rb');
-        if (false === $in) {
-            throw new \RuntimeException(sprintf('Unable to open package archive "%s".', $gzFile));
-        }
-
-        $out = fopen($tarFile, 'wb');
-        if (false === $out) {
-            fclose($in);
-            throw new \RuntimeException(sprintf('Unable to create temp archive "%s".', $tarFile));
-        }
-
-        try {
-            $bufferSize = 8 * 1024 * 1024;
-            while (!feof($in)) {
-                $chunk = fread($in, $bufferSize);
-                if (false === $chunk) {
-                    throw new \RuntimeException(sprintf('Failed to read from package archive "%s".', $gzFile));
-                }
-                if ('' === $chunk) {
-                    break;
-                }
-                if (false === fwrite($out, $chunk)) {
-                    throw new \RuntimeException(sprintf('Failed to write to temp archive "%s".', $tarFile));
-                }
-            }
-        } finally {
-            fclose($in);
-            fclose($out);
-        }
-
+        $extractionDirectory = $tempDirectory.'/extract';
         if (!createDirectoryTree($extractionDirectory, 0o755)) {
             throw new \RuntimeException(sprintf('Unable to create extraction directory "%s".', $extractionDirectory));
         }
 
-        $archive = new \PharData($tarFile);
-        $archive->extractTo($extractionDirectory, null, true);
+        $this->streamExtractGzTar($gzFile, $extractionDirectory);
 
         $sourceDirectory = $this->resolveSourceDirectory($extractionDirectory);
 
@@ -140,6 +104,99 @@ final class ProjectPackageArchiveExtractor
             $excludeFolders,
             $excludeFiles,
         );
+    }
+
+    private function streamExtractGzTar(string $gzFile, string $extractionDirectory): void
+    {
+        $tarBinary = $this->resolveTarBinary();
+        if (null !== $tarBinary) {
+            $this->streamExtractGzTarWithBinary($tarBinary, $gzFile, $extractionDirectory);
+
+            return;
+        }
+
+        $this->streamExtractGzTarWithPhar($gzFile, $extractionDirectory);
+    }
+
+    private function resolveTarBinary(): ?string
+    {
+        $candidates = ['/bin/tar', '/usr/bin/tar', '/usr/local/bin/tar'];
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate) && is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        $pathEnv = getenv('PATH');
+        if (is_string($pathEnv) && '' !== $pathEnv) {
+            $directories = explode(\PATH_SEPARATOR, $pathEnv);
+            foreach ($directories as $directory) {
+                $candidate = rtrim($directory, '/').'/tar';
+                if (is_file($candidate) && is_executable($candidate)) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function streamExtractGzTarWithBinary(string $tarBinary, string $gzFile, string $extractionDirectory): void
+    {
+        $absoluteArchive = realpath($gzFile);
+        if (false === $absoluteArchive) {
+            throw new \RuntimeException(sprintf('Package archive "%s" does not exist.', $gzFile));
+        }
+
+        $command = [
+            $tarBinary,
+            '--extract',
+            '--gzip',
+            '--no-same-owner',
+            '--no-same-permissions',
+            '--file='.$absoluteArchive,
+            '--directory='.$extractionDirectory,
+        ];
+
+        $process = proc_open($command, [
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ], $pipes);
+        if (!is_resource($process)) {
+            throw new \RuntimeException('Unable to start tar process for package extraction.');
+        }
+
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+
+        if (0 !== $exitCode) {
+            throw new \RuntimeException(sprintf(
+                'Failed to extract package archive (exit %d): %s',
+                $exitCode,
+                '' !== $stderr ? trim($stderr) : (is_string($stdout) ? trim($stdout) : ''),
+            ));
+        }
+    }
+
+    private function streamExtractGzTarWithPhar(string $gzFile, string $extractionDirectory): void
+    {
+        $phar = new \PharData($gzFile);
+        $phar->decompress();
+
+        $tarFile = preg_replace('/\.gz$/i', '', $gzFile);
+        if (!is_string($tarFile) || !is_file($tarFile)) {
+            throw new \RuntimeException(sprintf('Failed to decompress package archive "%s".', $gzFile));
+        }
+
+        try {
+            $archive = new \PharData($tarFile);
+            $archive->extractTo($extractionDirectory, null, true);
+        } finally {
+            @unlink($tarFile);
+        }
     }
 
     private function resolveSourceDirectory(string $extractionDirectory): string
