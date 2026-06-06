@@ -105,32 +105,50 @@ final readonly class ProjectPackageApiClient
         $package = $this->getPackage($packageId, $version);
         /** @var non-empty-string $downloadUrl */
         $downloadUrl = $package['download_url'];
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'oak-package-');
+        if (false === $tempFile) {
+            throw new \RuntimeException('Unable to create temporary file for package download.');
+        }
+
+        $handle = fopen($tempFile, 'wb');
+        if (false === $handle) {
+            @unlink($tempFile);
+            throw new \RuntimeException(sprintf('Unable to open temporary file "%s" for package download.', $tempFile));
+        }
+
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL => $downloadUrl,
             CURLOPT_POST => false,
-            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FILE => $handle,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_TIMEOUT => 300,
             CURLOPT_HTTPHEADER => $this->buildHeaders(),
         ]);
 
-        $response = curl_exec($ch);
-        if (false === $response) {
-            $error = curl_error($ch);
-            curl_close($ch);
+        $executed = curl_exec($ch);
+        fclose($handle);
 
-            throw new \RuntimeException(sprintf('Package download failed: %s', $error));
+        if (false === $executed) {
+            $error = curl_error($ch);
+            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            @unlink($tempFile);
+
+            throw new \RuntimeException(sprintf('Package download failed: %s', '' !== $error ? $error : sprintf('HTTP %d', $httpCode)));
         }
 
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         if (200 !== $httpCode) {
+            @unlink($tempFile);
+
             throw new \RuntimeException(sprintf('Package download failed: HTTP %d', $httpCode));
         }
 
-        return (string) $response;
+        return $tempFile;
     }
 
     /**

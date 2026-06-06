@@ -27,37 +27,119 @@ final class ProjectPackageArchiveExtractor
             throw new \RuntimeException(sprintf('Unable to create temp directory "%s".', $tempDirectory));
         }
 
+        $gzFile = $tempDirectory.'/package.tar.gz';
         $tarFile = $tempDirectory.'/package.tar';
         $extractionDirectory = $tempDirectory.'/extract';
 
         try {
-            $decoded = gzdecode($archiveContent);
-            if (false === $decoded) {
-                throw new \RuntimeException('Failed to decode package archive.');
+            if (false === file_put_contents($gzFile, $archiveContent)) {
+                throw new \RuntimeException(sprintf('Unable to write temp archive "%s".', $gzFile));
             }
 
-            if (false === file_put_contents($tarFile, $decoded)) {
-                throw new \RuntimeException(sprintf('Unable to write temp archive "%s".', $tarFile));
-            }
-
-            if (!createDirectoryTree($extractionDirectory, 0o755)) {
-                throw new \RuntimeException(sprintf('Unable to create extraction directory "%s".', $extractionDirectory));
-            }
-
-            $archive = new \PharData($tarFile);
-            $archive->extractTo($extractionDirectory, null, true);
-
-            $sourceDirectory = $this->resolveSourceDirectory($extractionDirectory);
-
-            return $this->copyExtractedDirectory(
-                $sourceDirectory,
-                $targetDir,
-                $excludeFolders,
-                $excludeFiles,
-            );
+            return $this->extractGzFileIntoTarget($gzFile, $tarFile, $extractionDirectory, $targetDir, $excludeFolders, $excludeFiles);
         } finally {
             $this->recursiveDelete($tempDirectory);
         }
+    }
+
+    /**
+     * @param array<string> $excludeFolders
+     * @param array<string> $excludeFiles
+     *
+     * @return array{
+     *     extracted: list<string>,
+     *     skipped_files: list<string>,
+     *     skipped_folders: list<string>
+     * }
+     */
+    public function extractTarGzFile(
+        string $archivePath,
+        string $targetDir,
+        array $excludeFolders,
+        array $excludeFiles,
+    ): array {
+        if (!is_file($archivePath)) {
+            throw new \RuntimeException(sprintf('Package archive "%s" does not exist.', $archivePath));
+        }
+
+        $tempDirectory = sys_get_temp_dir().'/project_package_'.bin2hex(random_bytes(8));
+        if (!createDirectoryTree($tempDirectory, 0o755)) {
+            throw new \RuntimeException(sprintf('Unable to create temp directory "%s".', $tempDirectory));
+        }
+
+        $tarFile = $tempDirectory.'/package.tar';
+        $extractionDirectory = $tempDirectory.'/extract';
+
+        try {
+            return $this->extractGzFileIntoTarget($archivePath, $tarFile, $extractionDirectory, $targetDir, $excludeFolders, $excludeFiles);
+        } finally {
+            $this->recursiveDelete($tempDirectory);
+        }
+    }
+
+    /**
+     * @param array<string> $excludeFolders
+     * @param array<string> $excludeFiles
+     *
+     * @return array{
+     *     extracted: list<string>,
+     *     skipped_files: list<string>,
+     *     skipped_folders: list<string>
+     * }
+     */
+    private function extractGzFileIntoTarget(
+        string $gzFile,
+        string $tarFile,
+        string $extractionDirectory,
+        string $targetDir,
+        array $excludeFolders,
+        array $excludeFiles,
+    ): array {
+        $in = fopen($gzFile, 'rb');
+        if (false === $in) {
+            throw new \RuntimeException(sprintf('Unable to open package archive "%s".', $gzFile));
+        }
+
+        $out = fopen($tarFile, 'wb');
+        if (false === $out) {
+            fclose($in);
+            throw new \RuntimeException(sprintf('Unable to create temp archive "%s".', $tarFile));
+        }
+
+        try {
+            $bufferSize = 8 * 1024 * 1024;
+            while (!feof($in)) {
+                $chunk = fread($in, $bufferSize);
+                if (false === $chunk) {
+                    throw new \RuntimeException(sprintf('Failed to read from package archive "%s".', $gzFile));
+                }
+                if ('' === $chunk) {
+                    break;
+                }
+                if (false === fwrite($out, $chunk)) {
+                    throw new \RuntimeException(sprintf('Failed to write to temp archive "%s".', $tarFile));
+                }
+            }
+        } finally {
+            fclose($in);
+            fclose($out);
+        }
+
+        if (!createDirectoryTree($extractionDirectory, 0o755)) {
+            throw new \RuntimeException(sprintf('Unable to create extraction directory "%s".', $extractionDirectory));
+        }
+
+        $archive = new \PharData($tarFile);
+        $archive->extractTo($extractionDirectory, null, true);
+
+        $sourceDirectory = $this->resolveSourceDirectory($extractionDirectory);
+
+        return $this->copyExtractedDirectory(
+            $sourceDirectory,
+            $targetDir,
+            $excludeFolders,
+            $excludeFiles,
+        );
     }
 
     private function resolveSourceDirectory(string $extractionDirectory): string

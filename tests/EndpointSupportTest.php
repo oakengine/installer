@@ -232,7 +232,10 @@ PHP;
 
         $packages = $client->listPackages();
         $package = $client->getPackage('oak-runner', '1.0.0');
-        $download = $client->downloadPackage('oak-runner', '1.0.0');
+        $downloadPath = $client->downloadPackage('oak-runner', '1.0.0');
+        $this->pathsToDelete[] = $downloadPath;
+
+        $download = (string) file_get_contents($downloadPath);
 
         $this->assertCount(1, $packages);
         $this->assertSame('oak-runner', $packages[0]['package_id']);
@@ -248,7 +251,10 @@ PHP;
         $client = new ProjectPackageApiClient((string) self::$baseUrl, 'runner', '', 'package-token');
 
         $packages = $client->listPackages();
-        $download = $client->downloadPackage('oak-runner', '1.0.0');
+        $downloadPath = $client->downloadPackage('oak-runner', '1.0.0');
+        $this->pathsToDelete[] = $downloadPath;
+
+        $download = (string) file_get_contents($downloadPath);
 
         $this->assertCount(1, $packages);
         $this->assertStringContainsString('runner-package-1.0.0', $download);
@@ -297,6 +303,51 @@ PHP;
         $this->assertContains('README.md', $result['skipped_files']);
         $this->assertSame('runner', file_get_contents($targetDir.'/app/file.txt'));
         $this->assertSame('from-archive', file_get_contents($targetDir.'/.env.local'));
+    }
+
+    public function testProjectPackageArchiveExtractorExtractsTarGzFromFile(): void
+    {
+        $targetDir = $this->createTempDirectory();
+        $archiveDir = $this->createTempDirectory();
+        $archivePath = $archiveDir.'/package.tar.gz';
+        file_put_contents($archivePath, $this->createTarGzArchive([
+            'package-root/app/file.txt' => 'from-file',
+            'package-root/composer.json' => json_encode([
+                'extra' => [
+                    'oak-engine-plugin' => [
+                        'env' => [
+                            'dir' => 'example',
+                        ],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        ]));
+
+        $extractor = new ProjectPackageArchiveExtractor();
+        $result = $extractor->extractTarGzFile(
+            $archivePath,
+            $targetDir,
+            [],
+            []
+        );
+
+        $this->assertSame(['app/file.txt', 'composer.json'], $result['extracted']);
+        $this->assertSame('from-file', file_get_contents($targetDir.'/app/file.txt'));
+    }
+
+    public function testProjectPackageArchiveExtractorRejectsMissingArchiveFile(): void
+    {
+        $extractor = new ProjectPackageArchiveExtractor();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('does not exist');
+
+        $extractor->extractTarGzFile(
+            sys_get_temp_dir().'/definitely-missing-'.uniqid('', true).'.tar.gz',
+            $this->createTempDirectory(),
+            [],
+            []
+        );
     }
 
     private static function findFreePort(): int

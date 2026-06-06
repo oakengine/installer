@@ -426,7 +426,7 @@ final class InstallerApplication
                 };
 
                 $package = $packageClient->getPackage($packageId, '' !== $packageVersion ? $packageVersion : null);
-                $packageContent = $packageClient->downloadPackage($package['package_id'], $package['version']);
+                $packageArchivePath = $packageClient->downloadPackage($package['package_id'], $package['version']);
 
                 $packageDir = 'runner' === $packageType
                     ? ''
@@ -435,12 +435,18 @@ final class InstallerApplication
 
                 $cleanResult = cleanTargetDirectory($packageTargetDir);
 
-                $extractZipResult = $archiveExtractor->extractTarGz(
-                    $packageContent,
-                    $packageTargetDir,
-                    $excludeFolders,
-                    $excludeFiles,
-                );
+                try {
+                    $extractZipResult = $archiveExtractor->extractTarGzFile(
+                        $packageArchivePath,
+                        $packageTargetDir,
+                        $excludeFolders,
+                        $excludeFiles,
+                    );
+                } finally {
+                    if (is_file($packageArchivePath)) {
+                        @unlink($packageArchivePath);
+                    }
+                }
                 $envPath = rtrim((string) $targetDirStr, '/').'/.env.local';
                 $composerMetadataSources = resolveProjectEnvComposerMetadataSources((string) $targetDirStr);
                 $envSyncResult = syncPackageEnvComposerMetadataSourcesToEnvLocalDetailed(
