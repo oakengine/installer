@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Oak\Engine\Installer {
     require_once __DIR__.'/app/Filesystem.php';
     require_once __DIR__.'/app/InstallUuidManager.php';
+    require_once __DIR__.'/app/AppSecretManager.php';
     require_once __DIR__.'/app/ProjectPackageApiClient.php';
     require_once __DIR__.'/app/ProjectPackageArchiveExtractor.php';
 }

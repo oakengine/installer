@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests;
 
 use Oak\Engine\Installer\InstallUuidManager;
+use Oak\Engine\Installer\AppSecretManager;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use ZipArchive;
@@ -723,6 +724,7 @@ APP_ENV=dev
 DATABASE_URL="mysql://user:pass@127.0.0.1/db1" # Database 1
 # DATABASE_URL="mysql://user:pass@127.0.0.1/db2" # Database 2
 INSTALL_UUID="018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1"
+APP_SECRET="690b81936a56c725cedc2a32a67b5b56"
 ENV;
         file_put_contents($envPath, $content);
 
@@ -736,6 +738,7 @@ ENV;
         $this->assertSame('Database 2', $result['databases'][1]['id']);
         $this->assertFalse($result['databases'][1]['active']);
         $this->assertSame('018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1', $result['install_uuid']);
+        $this->assertSame('690b81936a56c725cedc2a32a67b5b56', $result['app_secret']);
     }
 
     public function testUpdateEnvLocalAndSaveEnvLocalContent(): void
@@ -755,6 +758,34 @@ ENV;
 
         $this->assertTrue(saveEnvLocalContent($envPath, "LINE1\r\nLINE2\rLINE3"));
         $this->assertSame("LINE1\nLINE2\nLINE3", file_get_contents($envPath));
+    }
+
+    public function testUpdateEnvLocalAppendsAppEnvWhenMissing(): void
+    {
+        $envPath = $this->createTempDirectory().'/.env.local';
+        file_put_contents($envPath, "DATABASE_URL=\"mysql://user:pass@127.0.0.1/db1\" # DB1\n");
+
+        $this->assertTrue(updateEnvLocal($envPath, 'prod', 'DB1'));
+        $updatedContent = (string) file_get_contents($envPath);
+        $this->assertStringContainsString('APP_ENV=prod', $updatedContent);
+        $this->assertSame(1, substr_count($updatedContent, 'APP_ENV='));
+    }
+
+    public function testUpdateEnvLocalUpdatesCommentedAppEnvLine(): void
+    {
+        $envPath = $this->createTempDirectory().'/.env.local';
+        file_put_contents($envPath, "#APP_ENV=dev\n");
+
+        $this->assertTrue(updateEnvLocal($envPath, 'prod', 'DB1'));
+        $updatedContent = (string) file_get_contents($envPath);
+        $this->assertStringContainsString('APP_ENV=prod', $updatedContent);
+        $this->assertStringNotContainsString('#APP_ENV=', $updatedContent);
+    }
+
+    public function testUpdateEnvLocalReturnsFalseForMissingFile(): void
+    {
+        $envPath = $this->createTempDirectory().'/.env.local';
+        $this->assertFalse(updateEnvLocal($envPath, 'prod', 'DB1'));
     }
 
     public function testAddAndRemoveDatabaseFromEnvLocal(): void
@@ -792,6 +823,185 @@ ENV;
 
         $this->assertSame(0o755, fileperms($targetDir) & 0o777);
         $this->assertFalse(updateInstallUuidInEnvLocal($manager, $envPath, 'invalid-uuid'));
+    }
+
+    public function testUpdateAppSecretInEnvLocal(): void
+    {
+        $manager = new AppSecretManager();
+        $envPath = $this->createTempDirectory().'/.env.local';
+        $generated = $manager->upsertAppSecret('', true);
+        $replacement = '690b81936a56c725cedc2a32a67b5b56';
+
+        file_put_contents($envPath, $generated['content']);
+
+        $this->assertTrue(updateAppSecretInEnvLocal($manager, $envPath, $replacement));
+        $this->assertStringContainsString('APP_SECRET='.$replacement, (string) file_get_contents($envPath));
+    }
+
+    public function testUpdateAppSecretInEnvLocalRejectsInvalidValue(): void
+    {
+        $manager = new AppSecretManager();
+        $envPath = $this->createTempDirectory().'/.env.local';
+        $manager->ensureEnvLocalAppSecret($envPath);
+
+        $this->assertFalse(updateAppSecretInEnvLocal($manager, $envPath, 'short'));
+        $this->assertFalse(updateAppSecretInEnvLocal($manager, $envPath, 'value with spaces'));
+        $this->assertFalse(updateAppSecretInEnvLocal($manager, $envPath, ''));
+    }
+
+    public function testEnsureEnvLocalAppSecretCreatesDirectoryWithExpectedPermissions(): void
+    {
+        $manager = new AppSecretManager();
+        $targetDir = $this->createTempDirectory().'/nested/config';
+        $envPath = $targetDir.'/.env.local';
+
+        $manager->ensureEnvLocalAppSecret($envPath);
+
+        $this->assertSame(0o755, fileperms($targetDir) & 0o777);
+    }
+
+    public function testAppSecretManagerEnsuresPreservesAndRegeneratesSecret(): void
+    {
+        $manager = new AppSecretManager();
+        $envPath = $this->createTempDirectory().'/.env.local';
+
+        $first = $manager->ensureEnvLocalAppSecret($envPath);
+        $second = $manager->ensureEnvLocalAppSecret($envPath);
+        $third = $manager->ensureEnvLocalAppSecret($envPath, true);
+
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9._-]{16,128}$/', $first);
+        $this->assertSame($first, $second);
+        $this->assertNotSame($second, $third);
+        $this->assertStringContainsString('APP_SECRET='.$third, (string) file_get_contents($envPath));
+    }
+
+    public function testAppSecretManagerUpsertAppendsToExistingContent(): void
+    {
+        $manager = new AppSecretManager();
+        $existing = "APP_ENV=prod\nINSTALL_UUID=018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1\n";
+
+        $result = $manager->upsertAppSecret($existing, false);
+
+        $this->assertNotNull($result['secret']);
+        $this->assertTrue($result['changed']);
+        $this->assertStringContainsString('APP_ENV=prod', $result['content']);
+        $this->assertStringContainsString('APP_SECRET='.$result['secret'], $result['content']);
+    }
+
+    public function testAppSecretManagerUpsertKeepsExistingSecret(): void
+    {
+        $manager = new AppSecretManager();
+        $existing = "APP_SECRET=my-existing-secret-value\n";
+
+        $result = $manager->upsertAppSecret($existing, false);
+
+        $this->assertSame('my-existing-secret-value', $result['secret']);
+        $this->assertFalse($result['changed']);
+    }
+
+    public function testAppSecretManagerUpsertRejectsInvalidExistingSecret(): void
+    {
+        $manager = new AppSecretManager();
+        $existing = "APP_SECRET=short\n";
+
+        $result = $manager->upsertAppSecret($existing, false);
+
+        $this->assertNotSame('short', $result['secret']);
+        $this->assertTrue($result['changed']);
+        $this->assertStringNotContainsString('APP_SECRET=short', $result['content']);
+    }
+
+    public function testAppSecretManagerReplacesExistingSecretWhenRequested(): void
+    {
+        $manager = new AppSecretManager();
+        $existing = "APP_SECRET=my-existing-secret-value-12345\n";
+
+        $result = $manager->upsertAppSecret($existing, true);
+
+        $this->assertNotSame('my-existing-secret-value-12345', $result['secret']);
+        $this->assertTrue($result['changed']);
+        $this->assertStringContainsString('APP_SECRET='.$result['secret'], $result['content']);
+        $this->assertStringNotContainsString('APP_SECRET=my-existing-secret-value-12345', $result['content']);
+    }
+
+    public function testParseEnvLocalIgnoresInvalidAppSecret(): void
+    {
+        $envPath = $this->createTempDirectory().'/.env.local';
+        file_put_contents(
+            $envPath,
+            "APP_ENV=prod\nAPP_SECRET=tooshort\nAPP_SECRET=\"value with space\"\n"
+        );
+
+        $result = parseEnvLocal($envPath);
+
+        $this->assertNull($result['app_secret']);
+    }
+
+    public function testParseEnvLocalReadsAppSecretWithoutQuotes(): void
+    {
+        $envPath = $this->createTempDirectory().'/.env.local';
+        file_put_contents(
+            $envPath,
+            "APP_SECRET=my-plain-app-secret-12345678\n"
+        );
+
+        $result = parseEnvLocal($envPath);
+
+        $this->assertSame('my-plain-app-secret-12345678', $result['app_secret']);
+    }
+
+    public function testAppSecretManagerEnsuresAndWritesEnvLocalFile(): void
+    {
+        $manager = new AppSecretManager();
+        $targetDir = $this->createTempDirectory();
+        $envPath = $targetDir.'/.env.local';
+
+        $secret = $manager->ensureEnvLocalAppSecret($envPath);
+
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9._-]{16,128}$/', $secret);
+        $this->assertFileExists($envPath);
+        $this->assertStringContainsString('APP_SECRET='.$secret, (string) file_get_contents($envPath));
+    }
+
+    public function testAppSecretManagerThrowsWhenDirectoryCannotBeCreated(): void
+    {
+        $manager = new AppSecretManager();
+        $blocker = $this->createTempDirectory().'/blocker';
+        file_put_contents($blocker, 'not-a-directory');
+        $envPath = $blocker.'/nested/.env.local';
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to create directory');
+
+        $manager->ensureEnvLocalAppSecret($envPath);
+    }
+
+    public function testAppSecretManagerThrowsWhenExistingFileCannotBeRead(): void
+    {
+        $manager = new AppSecretManager();
+        $envPath = $this->createTempDirectory().'/.env.local';
+        file_put_contents($envPath, "APP_SECRET=existing-valid-secret-12345\n");
+        chmod($envPath, 0o000);
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('Unable to read');
+            $manager->ensureEnvLocalAppSecret($envPath);
+        } finally {
+            chmod($envPath, 0o644);
+        }
+    }
+
+    public function testAppSecretManagerThrowsWhenEnvFileCannotBeWritten(): void
+    {
+        $manager = new AppSecretManager();
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/.env.local', 0o755, true);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to write');
+
+        $manager->ensureEnvLocalAppSecret($targetDir.'/.env.local');
     }
 
     public function testSyncPackageEnvToEnvLocalAppendsOnlyMissingVariables(): void
@@ -1442,6 +1652,28 @@ ENV;
         $this->assertStringContainsString('<input type="hidden" name="view" value="environment">', $html);
 
         unset($_GET['view']);
+    }
+
+    public function testRenderPageEnvironmentViewIncludesAppSecretSection(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $GLOBALS['availableLangs'] = ['en', 'de'];
+        $_SESSION['lang'] = 'en';
+
+        $targetDir = $this->createTempDirectory();
+        $envPath = $targetDir.'/.env.local';
+        file_put_contents(
+            $envPath,
+            "APP_ENV=prod\nAPP_SECRET=my-existing-app-secret-12345678\n"
+        );
+
+        $html = renderPage('Installer', '<p>x</p>', null, $envPath, false, 'environment');
+
+        $this->assertStringContainsString('class="env-input env-input--secret"', $html);
+        $this->assertStringContainsString('name="app_secret" value="my-existing-app-secret-12345678"', $html);
+        $this->assertStringContainsString('name="regenerate_app_secret"', $html);
+        $this->assertStringNotContainsString('name="save_app_secret"', $html);
+        $this->assertStringNotContainsString('view=app-secret', $html);
     }
 
     public function testRenderPageLangFormPreservesInstallerTab(): void

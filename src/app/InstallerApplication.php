@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Oak\Engine\Installer\AppSecretManager;
 use Oak\Engine\Installer\InstallUuidManager;
 use Oak\Engine\Installer\ProjectPackageApiClient;
 use Oak\Engine\Installer\ProjectPackageArchiveExtractor;
@@ -191,8 +192,10 @@ final class InstallerApplication
             $client = new GitHubClient($apiBaseUrl, $token, $currentInstallerVersion);
             $githubCacheDir = $projectRoot.'/var/cache/github-api';
             $installUuidManager = new InstallUuidManager();
+            $appSecretManager = new AppSecretManager();
             $envPath = rtrim($targetDirFinal, '/').'/.env.local';
             $installUuid = $installUuidManager->ensureEnvLocalInstallUuid($envPath);
+            $appSecretManager->ensureEnvLocalAppSecret($envPath);
 
             global $lang;
             /** @var array<string, string> $langForGlobal */
@@ -217,9 +220,18 @@ final class InstallerApplication
                 if (isset($_POST['database']) && is_scalar($_POST['database'])) {
                     $newDb = (string) $_POST['database'];
                 }
+                $newAppSecret = '';
+                if (isset($_POST['app_secret']) && is_scalar($_POST['app_secret'])) {
+                    $newAppSecret = (string) $_POST['app_secret'];
+                }
 
                 if (updateEnvLocal($envPath, $newEnv, $newDb)) {
                     $installUuidManager->ensureEnvLocalInstallUuid($envPath);
+                    if ('' === $newAppSecret) {
+                        $appSecretManager->ensureEnvLocalAppSecret($envPath);
+                    } else {
+                        updateAppSecretInEnvLocal($appSecretManager, $envPath, $newAppSecret);
+                    }
                     $content = '<div class="success">'.resolveLangKey('config_saved', $langForGlobal).'<br>';
                     $content .= '<strong>'.resolveLangKey('mode', $langForGlobal).':</strong> '.htmlspecialchars($newEnv).'<br>';
                     $content .= '<strong>'.resolveLangKey('database', $langForGlobal).':</strong> '.htmlspecialchars($newDb).'</div>';
@@ -238,6 +250,7 @@ final class InstallerApplication
 
                 if (saveEnvLocalContent($envPath, $newContent)) {
                     $installUuidManager->ensureEnvLocalInstallUuid($envPath);
+                    $appSecretManager->ensureEnvLocalAppSecret($envPath);
                     $content = '<div class="success">'.resolveLangKey('env_file_saved', $langForGlobal).'</div>';
                     echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                     exit;
@@ -273,6 +286,33 @@ final class InstallerApplication
                 exit;
             }
 
+            if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['save_app_secret'])) {
+                $envPath = rtrim($targetDirFinal, '/').'/.env.local';
+                $newAppSecret = '';
+                if (isset($_POST['app_secret']) && is_scalar($_POST['app_secret'])) {
+                    $newAppSecret = (string) $_POST['app_secret'];
+                }
+
+                if (updateAppSecretInEnvLocal($appSecretManager, $envPath, $newAppSecret)) {
+                    $content = '<div class="success">'.resolveLangKey('app_secret_saved', $langForGlobal).'<br>';
+                    $content .= '<strong>'.resolveLangKey('app_secret', $langForGlobal).':</strong> '.htmlspecialchars(trim($newAppSecret)).'</div>';
+                    echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
+                    exit;
+                }
+
+                throw new RuntimeException(resolveLangKey('app_secret_invalid', $langForGlobal));
+            }
+
+            if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['regenerate_app_secret'])) {
+                $envPath = rtrim($targetDirFinal, '/').'/.env.local';
+                $newAppSecret = $appSecretManager->ensureEnvLocalAppSecret($envPath, true);
+
+                $content = '<div class="success">'.resolveLangKey('app_secret_saved', $langForGlobal).'<br>';
+                $content .= '<strong>'.resolveLangKey('app_secret', $langForGlobal).':</strong> '.htmlspecialchars($newAppSecret).'</div>';
+                echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
+                exit;
+            }
+
             if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['add_database'])) {
                 $envPath = rtrim($targetDirFinal, '/').'/.env.local';
                 $dbId = '';
@@ -286,6 +326,7 @@ final class InstallerApplication
 
                 if (addDatabaseToEnvLocal($envPath, $dbId, $dbUrl)) {
                     $installUuidManager->ensureEnvLocalInstallUuid($envPath);
+                    $appSecretManager->ensureEnvLocalAppSecret($envPath);
                     $content = '<div class="success">'.resolveLangKey('database_added', $langForGlobal, ['id' => htmlspecialchars($dbId)]).'</div>';
                     echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                     exit;
@@ -303,6 +344,7 @@ final class InstallerApplication
 
                 if (removeDatabaseFromEnvLocal($envPath, $removeDbId)) {
                     $installUuidManager->ensureEnvLocalInstallUuid($envPath);
+                    $appSecretManager->ensureEnvLocalAppSecret($envPath);
                     $content = '<div class="success">'.resolveLangKey('database_removed', $langForGlobal, ['id' => htmlspecialchars($removeDbId)]).'</div>';
                     echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                     exit;
@@ -456,6 +498,7 @@ final class InstallerApplication
 
                 if ('runner' === $packageType) {
                     $installUuidManager->ensureEnvLocalInstallUuid($envPath);
+                    $appSecretManager->ensureEnvLocalAppSecret($envPath);
                 }
 
                 $extractedCount = count($extractZipResult['extracted']);

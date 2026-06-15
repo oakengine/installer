@@ -24,7 +24,8 @@ A lightweight PHP installer for OakEngine deployments. The project installation 
 1. Copy the complete contents of `src/` to the web-accessible installer directory on the target server.
 2. Rename `config.example.php` to `config.php`.
 3. Set at least `project_api_url` and `target_directory`.
-4. Open the installer in the browser.
+4. For the local Docker setup, the default package API endpoint is `http://web-server/index.php` with the dev token `oak-local-dev-token`.
+5. Open the installer in the browser.
 
 ## Configuration
 

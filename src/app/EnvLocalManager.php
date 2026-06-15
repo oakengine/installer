@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
+use Oak\Engine\Installer\AppSecretManager;
 use Oak\Engine\Installer\InstallUuidManager;
 
 /**
- * @return array{app_env: string, current_db: ?string, databases: array<int, array{id: string, url: string, active: bool}>, install_uuid: ?string, raw_content: string}
+ * @return array{app_env: string, current_db: ?string, databases: array<int, array{id: string, url: string, active: bool}>, install_uuid: ?string, app_secret: ?string, raw_content: string}
  */
 function parseEnvLocal(string $envPath): array
 {
@@ -14,6 +15,7 @@ function parseEnvLocal(string $envPath): array
         'current_db' => null,
         'databases' => [],
         'install_uuid' => null,
+        'app_secret' => null,
         'raw_content' => '',
     ];
 
@@ -51,6 +53,13 @@ function parseEnvLocal(string $envPath): array
         if (preg_match('/^\s*INSTALL_UUID\s*=\s*("?)([0-9a-fA-F-]+)\1\s*$/', $line, $matches)) {
             $result['install_uuid'] = strtolower($matches[2]);
         }
+
+        if (preg_match('/^\s*APP_SECRET\s*=\s*("?)([^"\s]+)\1\s*$/', $line, $matches)) {
+            $candidate = trim($matches[2]);
+            if (1 === preg_match('/^[A-Za-z0-9._-]{16,128}$/', $candidate)) {
+                $result['app_secret'] = $candidate;
+            }
+        }
     }
 
     return $result;
@@ -67,10 +76,12 @@ function updateEnvLocal(string $envPath, string $appEnv, string $activeDb): bool
         return false;
     }
     $lines = explode("\n", $content);
+    $appEnvWritten = false;
 
     foreach ($lines as $lineNum => &$line) {
-        if (preg_match('/^APP_ENV\s*=\s*(dev|prod)/i', $line)) {
+        if (preg_match('/^\s*#?\s*APP_ENV\s*=\s*(dev|prod)/i', $line)) {
             $line = 'APP_ENV='.$appEnv;
+            $appEnvWritten = true;
             continue;
         }
 
@@ -84,6 +95,11 @@ function updateEnvLocal(string $envPath, string $appEnv, string $activeDb): bool
                 $line = '#'.ltrim($line);
             }
         }
+    }
+    unset($line);
+
+    if (!$appEnvWritten) {
+        $lines[] = 'APP_ENV='.$appEnv;
     }
 
     return false !== file_put_contents($envPath, implode("\n", $lines));
@@ -191,6 +207,32 @@ function updateInstallUuidInEnvLocal(InstallUuidManager $manager, string $envPat
 
     $updated = $manager->upsertInstallUuid($content, true);
     $replacedContent = str_replace('INSTALL_UUID='.$updated['uuid'], 'INSTALL_UUID='.$normalizedUuid, $updated['content']);
+    $directory = dirname($envPath);
+    if (!\Oak\Engine\Installer\createDirectoryTree($directory, 0o755)) {
+        return false;
+    }
+
+    return false !== file_put_contents($envPath, $replacedContent);
+}
+
+function updateAppSecretInEnvLocal(AppSecretManager $manager, string $envPath, string $appSecret): bool
+{
+    $content = '';
+    if (file_exists($envPath)) {
+        $currentContent = file_get_contents($envPath);
+        if (false === $currentContent) {
+            return false;
+        }
+        $content = $currentContent;
+    }
+
+    $normalizedSecret = trim($appSecret);
+    if (1 !== preg_match('/^[A-Za-z0-9._-]{16,128}$/', $normalizedSecret)) {
+        return false;
+    }
+
+    $updated = $manager->upsertAppSecret($content, true);
+    $replacedContent = str_replace('APP_SECRET='.$updated['secret'], 'APP_SECRET='.$normalizedSecret, $updated['content']);
     $directory = dirname($envPath);
     if (!\Oak\Engine\Installer\createDirectoryTree($directory, 0o755)) {
         return false;

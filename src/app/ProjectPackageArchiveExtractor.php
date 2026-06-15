@@ -173,11 +173,7 @@ final class ProjectPackageArchiveExtractor
         $exitCode = proc_close($process);
 
         if (0 !== $exitCode) {
-            throw new \RuntimeException(sprintf(
-                'Failed to extract package archive (exit %d): %s',
-                $exitCode,
-                '' !== $stderr ? trim($stderr) : (is_string($stdout) ? trim($stdout) : ''),
-            ));
+            throw new \RuntimeException(sprintf('Failed to extract package archive (exit %d): %s', $exitCode, '' !== $stderr ? trim($stderr) : (is_string($stdout) ? trim($stdout) : '')));
         }
     }
 

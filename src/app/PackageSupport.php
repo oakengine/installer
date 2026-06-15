@@ -242,7 +242,7 @@ function resolvePackageInstallTargetDir(string $targetDir, string $packageType, 
 
     $normalizedPackageDir = trim($packageDir, '/');
     if ('' === $normalizedPackageDir) {
-        throw new \InvalidArgumentException(sprintf('A package directory is required for %s packages.', $normalizedType));
+        throw new InvalidArgumentException(sprintf('A package directory is required for %s packages.', $normalizedType));
     }
 
     return match ($normalizedType) {
@@ -288,5 +288,5 @@ function resolvePackageInstallDirFromMetadata(array $composerMetadata, string $p
         }
     }
 
-    throw new \RuntimeException(sprintf('Cannot determine install directory for %s package (missing env.dir and composer name).', $packageType));
+    throw new RuntimeException(sprintf('Cannot determine install directory for %s package (missing env.dir and composer name).', $packageType));
 }

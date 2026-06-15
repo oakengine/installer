@@ -569,6 +569,9 @@ HTML;
         $text_dashboard_updates = resolveLangKey('dashboard_updates', $langForTemplate);
         $text_dashboard_environment = resolveLangKey('dashboard_environment', $langForTemplate);
         $text_dashboard_databases = resolveLangKey('dashboard_databases', $langForTemplate);
+        $text_app_secret = resolveLangKey('app_secret', $langForTemplate);
+        $text_app_secret_help = resolveLangKey('app_secret_help', $langForTemplate);
+        $text_regenerate_app_secret = resolveLangKey('regenerate_app_secret', $langForTemplate);
         $text_dashboard_install_uuid = resolveLangKey('dashboard_install_uuid', $langForTemplate);
         $text_migrations_status = resolveLangKey('migrations_status', $langForTemplate);
         $text_run_migrations = resolveLangKey('run_migrations', $langForTemplate);
@@ -602,6 +605,7 @@ HTML;
 
         $envRawContent = htmlspecialchars((string) $envConfig['raw_content']);
         $currentInstallUuid = htmlspecialchars((string) ($envConfig['install_uuid'] ?? ''));
+        $currentAppSecret = htmlspecialchars((string) ($envConfig['app_secret'] ?? ''));
         $dashboardStateInputs = renderDashboardStateInputs($activeView, $requestDashboardState['itab']);
         $iconSave = lucideIcon('save', 14);
         $iconPlay = lucideIcon('play', 14);
@@ -611,13 +615,28 @@ HTML;
 
         $envConfigHtml = <<<HTML
 <div class="env-config">
-<form method="post" class="env-form" style="margin-bottom: 20px;">
+<form method="post" class="env-form">
     {$dashboardStateInputs}
     <div class="env-row">
         <label>{$text_mode}:</label>
         {$appEnvDropdown}
     </div>
-    <button type="submit" name="save_env" class="btn btn-secondary btn-small">{$iconSave} {$text_save}</button>
+
+    <h3 style="margin:20px 0 10px;">{$text_app_secret}</h3>
+    <p style="margin-bottom:12px; color:#586069;">{$text_app_secret_help}</p>
+    <div class="env-row env-row--inline env-row--grow">
+        <label>{$text_app_secret}:</label>
+        <input type="text" name="app_secret" value="{$currentAppSecret}" class="env-input env-input--secret" required pattern="[A-Za-z0-9._-]{{16,128}}">
+    </div>
+
+    <div class="env-actions" style="margin-top: 20px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <button type="submit" name="save_env" class="btn btn-secondary">{$iconSave} {$text_save}</button>
+    </div>
+</form>
+
+<form method="post" style="margin: 12px 0 20px;">
+    {$dashboardStateInputs}
+    <button type="submit" name="regenerate_app_secret" class="btn btn-small">{$iconRefresh} {$text_regenerate_app_secret}</button>
 </form>
 
 <h3 style="margin-bottom:10px;">{$text_env_editor}</h3>
@@ -1267,6 +1286,7 @@ HTML;
     .env-input { min-width: 130px; }
     .env-input--wide { width: 100%; }
     .env-input--uuid { flex: 1 1 auto; width: 100%; min-width: 0; }
+    .env-input--secret { flex: 1 1 auto; width: 100%; min-width: 0; font-family: var(--font-mono); }
     .env-form--inline .btn { margin-left: auto; }
     .env-select:focus, .env-input:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
     .env-textarea { width: 100%; min-height: 200px; padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius); font-family: var(--font-mono); font-size: 0.86rem; background: var(--surface); color: var(--text); resize: vertical; }

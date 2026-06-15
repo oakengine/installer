@@ -24,7 +24,8 @@ Ein leichtgewichtiges PHP-Installationswerkzeug fuer Oak-Engine-Deployments. Die
 1. Den kompletten Inhalt von `src/` in das Web-Verzeichnis des Installers auf dem Zielserver kopieren.
 2. `config.example.php` in `config.php` umbenennen.
 3. Mindestens `project_api_url` und `target_directory` setzen.
-4. Installer im Browser aufrufen.
+4. Im lokalen Docker-Setup ist der Default-Endpunkt `http://web-server/index.php` mit dem Dev-Token `oak-local-dev-token`.
+5. Installer im Browser aufrufen.
 
 ## Konfiguration
 
