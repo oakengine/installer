@@ -248,10 +248,39 @@ final class InstallerApplication
                     $newContent = (string) $_POST['env_content'];
                 }
 
+                $newEnv = 'prod';
+                if (isset($_POST['app_env']) && is_scalar($_POST['app_env'])) {
+                    $candidateEnv = strtolower(trim((string) $_POST['app_env']));
+                    if (in_array($candidateEnv, ['dev', 'prod'], true)) {
+                        $newEnv = $candidateEnv;
+                    }
+                }
+
+                $appSecretInput = '';
+                if (isset($_POST['app_secret']) && is_scalar($_POST['app_secret'])) {
+                    $appSecretInput = trim((string) $_POST['app_secret']);
+                }
+
+                $appSecretGenerated = false;
+                if ('' === $appSecretInput) {
+                    $appSecretInput = bin2hex(random_bytes(16));
+                    $appSecretGenerated = true;
+                } elseif (1 !== preg_match('/^[A-Za-z0-9._-]{16,128}$/', $appSecretInput)) {
+                    throw new RuntimeException(resolveLangKey('app_secret_invalid', $langForGlobal));
+                }
+
+                $newContent = setEnvLocalValue($newContent, 'APP_ENV', $newEnv);
+                $newContent = setEnvLocalValue($newContent, 'APP_SECRET', $appSecretInput);
+
                 if (saveEnvLocalContent($envPath, $newContent)) {
                     $installUuidManager->ensureEnvLocalInstallUuid($envPath);
-                    $appSecretManager->ensureEnvLocalAppSecret($envPath);
-                    $content = '<div class="success">'.resolveLangKey('env_file_saved', $langForGlobal).'</div>';
+                    $content = '<div class="success">'.resolveLangKey('env_file_saved', $langForGlobal).'<br>';
+                    $content .= '<strong>'.resolveLangKey('mode', $langForGlobal).':</strong> '.htmlspecialchars($newEnv).'<br>';
+                    $content .= '<strong>'.resolveLangKey('app_secret', $langForGlobal).':</strong> '.htmlspecialchars($appSecretInput);
+                    if ($appSecretGenerated) {
+                        $content .= ' <em>('.resolveLangKey('app_secret_generated', $langForGlobal).')</em>';
+                    }
+                    $content .= '</div>';
                     echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                     exit;
                 }
@@ -284,23 +313,6 @@ final class InstallerApplication
                 $content .= '<strong>'.resolveLangKey('install_uuid', $langForGlobal).':</strong> '.htmlspecialchars($newInstallUuid).'</div>';
                 echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
                 exit;
-            }
-
-            if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['save_app_secret'])) {
-                $envPath = rtrim($targetDirFinal, '/').'/.env.local';
-                $newAppSecret = '';
-                if (isset($_POST['app_secret']) && is_scalar($_POST['app_secret'])) {
-                    $newAppSecret = (string) $_POST['app_secret'];
-                }
-
-                if (updateAppSecretInEnvLocal($appSecretManager, $envPath, $newAppSecret)) {
-                    $content = '<div class="success">'.resolveLangKey('app_secret_saved', $langForGlobal).'<br>';
-                    $content .= '<strong>'.resolveLangKey('app_secret', $langForGlobal).':</strong> '.htmlspecialchars(trim($newAppSecret)).'</div>';
-                    echo renderPage(resolveLangKey('configuration', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
-                    exit;
-                }
-
-                throw new RuntimeException(resolveLangKey('app_secret_invalid', $langForGlobal));
             }
 
             if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['regenerate_app_secret'])) {

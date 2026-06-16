@@ -566,11 +566,15 @@ HTML;
         $text_add_database = resolveLangKey('add_database', $langForTemplate);
         $text_remove_database = resolveLangKey('remove_database', $langForTemplate);
         $text_select_database = resolveLangKey('select_database', $langForTemplate);
+        $text_active_database = resolveLangKey('active_database', $langForTemplate);
+        $text_active_database_help = resolveLangKey('active_database_help', $langForTemplate);
+        $text_remove_database_help = resolveLangKey('remove_database_help', $langForTemplate);
         $text_dashboard_updates = resolveLangKey('dashboard_updates', $langForTemplate);
         $text_dashboard_environment = resolveLangKey('dashboard_environment', $langForTemplate);
         $text_dashboard_databases = resolveLangKey('dashboard_databases', $langForTemplate);
         $text_app_secret = resolveLangKey('app_secret', $langForTemplate);
         $text_app_secret_help = resolveLangKey('app_secret_help', $langForTemplate);
+        $text_app_secret_placeholder = resolveLangKey('app_secret_placeholder', $langForTemplate);
         $text_regenerate_app_secret = resolveLangKey('regenerate_app_secret', $langForTemplate);
         $text_dashboard_install_uuid = resolveLangKey('dashboard_install_uuid', $langForTemplate);
         $text_migrations_status = resolveLangKey('migrations_status', $langForTemplate);
@@ -615,45 +619,40 @@ HTML;
 
         $envConfigHtml = <<<HTML
 <div class="env-config">
-<form method="post" class="env-form">
+<form method="post" class="env-form env-form--stack">
     {$dashboardStateInputs}
-    <div class="env-row">
+
+    <div class="env-row env-row--stack env-row--wide">
         <label>{$text_mode}:</label>
         {$appEnvDropdown}
     </div>
 
-    <h3 style="margin:20px 0 10px;">{$text_app_secret}</h3>
-    <p style="margin-bottom:12px; color:#586069;">{$text_app_secret_help}</p>
-    <div class="env-row env-row--inline env-row--grow">
-        <label>{$text_app_secret}:</label>
-        <input type="text" name="app_secret" value="{$currentAppSecret}" class="env-input env-input--secret" required pattern="[A-Za-z0-9._-]{{16,128}}">
+    <div class="env-row env-row--stack env-row--wide">
+        <label for="app_secret_input">{$text_app_secret}:</label>
+        <div class="input-group">
+            <input type="text" id="app_secret_input" name="app_secret" value="{$currentAppSecret}" class="env-input env-input--secret" placeholder="{$text_app_secret_placeholder}">
+            <button type="submit" name="regenerate_app_secret" value="1" class="input-group-append" title="{$text_regenerate_app_secret}" aria-label="{$text_regenerate_app_secret}">{$iconRefresh}</button>
+        </div>
+        <p class="env-help">{$text_app_secret_help}</p>
     </div>
 
-    <div class="env-actions" style="margin-top: 20px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <button type="submit" name="save_env" class="btn btn-secondary">{$iconSave} {$text_save}</button>
+    <div class="env-row env-row--stack env-row--wide">
+        <label for="env_content_textarea">{$text_env_editor}:</label>
+        <textarea id="env_content_textarea" name="env_content" class="env-textarea">{$envRawContent}</textarea>
     </div>
-</form>
 
-<form method="post" style="margin: 12px 0 20px;">
-    {$dashboardStateInputs}
-    <button type="submit" name="regenerate_app_secret" class="btn btn-small">{$iconRefresh} {$text_regenerate_app_secret}</button>
-</form>
-
-<h3 style="margin-bottom:10px;">{$text_env_editor}</h3>
-<form method="post">
-    {$dashboardStateInputs}
-    <label style="display:block; margin-bottom:6px; font-weight:500; color:#586069;">{$text_env_content}:</label>
-    <textarea name="env_content" class="env-textarea">{$envRawContent}</textarea>
-    <button type="submit" name="save_env_content" class="btn btn-secondary btn-small" style="margin-top:8px;">{$iconSave} {$text_save_env_file}</button>
+    <div class="env-actions">
+        <button type="submit" name="save_env_content" class="btn btn-secondary">{$iconSave} {$text_save}</button>
+    </div>
 </form>
 </div>
 HTML;
 
         $dbConfigHtml = <<<HTML
 <div class="env-config">
-<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+<div class="env-section-header">
     <div>
-        <h3 style="margin-bottom:5px;">{$text_migrations_status}</h3>
+        <h3 class="env-section-title">{$text_migrations_status}</h3>
         <div>{$migrationsStatusHtml}</div>
     </div>
     <form method="post"{$runMigrationsConfirmAttr}>
@@ -662,59 +661,70 @@ HTML;
     </form>
 </div>
 
-<hr style="margin:15px 0; border:none; border-top:1px solid #d1d5db;">
+<hr class="env-divider">
 
-<form method="post" class="env-form" style="margin-bottom: 20px;">
-    {$dashboardStateInputs}
-    <div class="env-row">
-        <label>{$text_database}:</label>
-        {$databaseDropdown}
-    </div>
-    <button type="submit" name="save_env" class="btn btn-secondary btn-small" {$databaseActionDisabled}>{$iconSave} {$text_save}</button>
-</form>
-
-<hr style="margin:15px 0; border:none; border-top:1px solid #d1d5db;">
-
-<h3 style="margin-bottom:10px;">{$text_db_manager}</h3>
-<form method="post" class="env-form env-form--stack" style="margin-bottom:8px;">
+<form method="post" class="env-form env-form--stack">
     {$dashboardStateInputs}
     <div class="env-row env-row--stack env-row--wide">
-        <label>{$text_db_id}:</label>
-        <input type="text" name="db_id" class="env-input env-input--wide" required>
+        <label for="active_database_select">{$text_active_database}:</label>
+        <div class="input-group">
+            {$databaseDropdown}
+            <button type="submit" name="save_env" value="1" class="input-group-append" title="{$text_save}" aria-label="{$text_save}"{$databaseActionDisabled}>{$iconSave}</button>
+        </div>
+        <p class="env-help">{$text_active_database_help}</p>
     </div>
-    <div class="env-row env-row--stack env-row--wide">
-        <label>{$text_db_url}:</label>
-        <input type="text" name="db_url" class="env-input env-input--wide" required>
-    </div>
-    <button type="submit" name="add_database" class="btn btn-secondary btn-small">{$iconPlus} {$text_add_database}</button>
 </form>
 
-<form method="post" class="env-form">
+<hr class="env-divider">
+
+<form method="post" class="env-form env-form--stack">
     {$dashboardStateInputs}
-    <div class="env-row">
-        <label>{$text_select_database}:</label>
-        {$removeDbDropdown}
+    <div class="env-row env-row--stack env-row--wide">
+        <label for="db_id_input">{$text_db_id}:</label>
+        <input type="text" id="db_id_input" name="db_id" class="env-input env-input--wide" required>
     </div>
-    <button type="submit" name="remove_database" class="btn btn-small" {$removeDatabaseActionDisabled}>{$iconTrash} {$text_remove_database}</button>
+    <div class="env-row env-row--stack env-row--wide">
+        <label for="db_url_input">{$text_db_url}:</label>
+        <input type="text" id="db_url_input" name="db_url" class="env-input env-input--wide" required>
+    </div>
+    <div class="env-actions">
+        <button type="submit" name="add_database" class="btn btn-secondary">{$iconPlus} {$text_add_database}</button>
+    </div>
+</form>
+
+<hr class="env-divider">
+
+<form method="post" class="env-form env-form--stack">
+    {$dashboardStateInputs}
+    <div class="env-row env-row--stack env-row--wide">
+        <label for="remove_db_id_select">{$text_remove_database}:</label>
+        <div class="input-group">
+            {$removeDbDropdown}
+            <button type="submit" name="remove_database" value="1" class="input-group-append input-group-append--danger" title="{$text_remove_database}" aria-label="{$text_remove_database}"{$removeDatabaseActionDisabled}>{$iconTrash}</button>
+        </div>
+        <p class="env-help">{$text_remove_database_help}</p>
+    </div>
 </form>
 </div>
 HTML;
 
         $installUuidHtml = <<<HTML
 <div class="env-config">
-<h3 style="margin-bottom:10px;">{$text_install_uuid}</h3>
-<p style="margin-bottom:12px; color:#586069;">{$text_install_uuid_help}</p>
-<form method="post" class="env-form env-form--inline" style="margin-bottom: 12px;">
+<form method="post" class="env-form env-form--stack">
     {$dashboardStateInputs}
-    <div class="env-row env-row--inline env-row--grow">
-        <label>{$text_install_uuid}:</label>
-        <input type="text" name="install_uuid" value="{$currentInstallUuid}" class="env-input env-input--uuid" required pattern="[0-9a-fA-F-]{36}">
+
+    <div class="env-row env-row--stack env-row--wide">
+        <label for="install_uuid_input">{$text_install_uuid}:</label>
+        <div class="input-group">
+            <input type="text" id="install_uuid_input" name="install_uuid" value="{$currentInstallUuid}" class="env-input env-input--uuid" required pattern="[0-9a-fA-F-]{36}">
+            <button type="submit" name="regenerate_install_uuid" value="1" class="input-group-append" title="{$text_regenerate_install_uuid}" aria-label="{$text_regenerate_install_uuid}">{$iconRefresh}</button>
+        </div>
+        <p class="env-help">{$text_install_uuid_help}</p>
     </div>
-    <button type="submit" name="save_install_uuid" class="btn btn-secondary btn-small">{$iconSave} {$text_save}</button>
-</form>
-<form method="post">
-    {$dashboardStateInputs}
-    <button type="submit" name="regenerate_install_uuid" class="btn btn-small">{$iconRefresh} {$text_regenerate_install_uuid}</button>
+
+    <div class="env-actions">
+        <button type="submit" name="save_install_uuid" class="btn btn-secondary">{$iconSave} {$text_save}</button>
+    </div>
 </form>
 </div>
 HTML;
@@ -1272,6 +1282,7 @@ HTML;
     .env-row--grow { flex: 1 1 auto; }
     .env-row--wide { width: min(100%, 720px); }
     .env-row label { font-weight: 600; color: var(--text-muted); font-size: 0.88rem; }
+    .env-help { color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; line-height: 1.45; }
     .env-row--inline label { white-space: nowrap; }
     .env-select, .env-input {
         padding: 8px 12px;
@@ -1285,9 +1296,39 @@ HTML;
     }
     .env-input { min-width: 130px; }
     .env-input--wide { width: 100%; }
-    .env-input--uuid { flex: 1 1 auto; width: 100%; min-width: 0; }
+    .env-input--uuid { flex: 1 1 auto; width: 100%; min-width: 0; font-family: var(--font-mono); }
     .env-input--secret { flex: 1 1 auto; width: 100%; min-width: 0; font-family: var(--font-mono); }
     .env-form--inline .btn { margin-left: auto; }
+    .input-group { display: flex; align-items: stretch; }
+    .input-group > .env-input { flex: 1 1 auto; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    .input-group > .input-group-append {
+        display: inline-flex; align-items: center; justify-content: center;
+        flex: 0 0 auto;
+        padding: 0 12px;
+        background: var(--brand);
+        color: #fff;
+        border: 1px solid var(--brand);
+        border-left: none;
+        border-top-left-radius: 0; border-bottom-left-radius: 0;
+        border-top-right-radius: 9px; border-bottom-right-radius: 9px;
+        cursor: pointer;
+        font-family: inherit;
+        box-shadow: var(--shadow-sm);
+        transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.06s ease;
+    }
+    .input-group > .input-group-append:hover { background: var(--brand-strong); border-color: var(--brand-strong); box-shadow: var(--shadow-md); }
+    .input-group > .input-group-append:active { transform: translateY(1px); }
+    .input-group > .input-group-append:focus-visible { outline: none; box-shadow: var(--ring); }
+    .input-group > .input-group-append svg { width: 15px; height: 15px; flex-shrink: 0; }
+    .input-group > .input-group-append--danger { background: var(--danger); border-color: var(--danger); }
+    .input-group > .input-group-append--danger:hover { background: color-mix(in srgb, var(--danger) 85%, #000); border-color: color-mix(in srgb, var(--danger) 85%, #000); }
+    .input-group > .input-group-append:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+    .input-group > .input-group-append:disabled:hover { background: var(--brand); border-color: var(--brand); }
+    .input-group > .input-group-append--danger:disabled:hover { background: var(--danger); border-color: var(--danger); }
+    .env-section-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+    .env-section-title { font-size: 1.02rem; font-weight: 650; letter-spacing: -0.01em; margin-bottom: 6px; }
+    .env-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    .env-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .env-select:focus, .env-input:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
     .env-textarea { width: 100%; min-height: 200px; padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius); font-family: var(--font-mono); font-size: 0.86rem; background: var(--surface); color: var(--text); resize: vertical; }
     .env-textarea:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }

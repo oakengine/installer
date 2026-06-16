@@ -760,6 +760,49 @@ ENV;
         $this->assertSame("LINE1\nLINE2\nLINE3", file_get_contents($envPath));
     }
 
+    public function testSetEnvLocalValueReplacesExistingLine(): void
+    {
+        $content = "APP_ENV=dev\nAPP_SECRET=old-secret-1234567890\nOTHER=1\n";
+
+        $result = setEnvLocalValue($content, 'APP_ENV', 'prod');
+
+        $this->assertSame("APP_ENV=prod\nAPP_SECRET=old-secret-1234567890\nOTHER=1\n", $result);
+    }
+
+    public function testSetEnvLocalValueReplacesCommentedLine(): void
+    {
+        $content = "#APP_SECRET=old-secret-1234567890\nOTHER=1\n";
+
+        $result = setEnvLocalValue($content, 'APP_SECRET', 'new-secret-1234567890');
+
+        $this->assertSame("APP_SECRET=new-secret-1234567890\nOTHER=1\n", $result);
+    }
+
+    public function testSetEnvLocalValueAppendsMissingKey(): void
+    {
+        $content = "OTHER=1\n";
+
+        $result = setEnvLocalValue($content, 'APP_ENV', 'prod');
+
+        $this->assertSame("OTHER=1\nAPP_ENV=prod\n", $result);
+    }
+
+    public function testSetEnvLocalValueAppendsToEmptyContent(): void
+    {
+        $result = setEnvLocalValue('', 'APP_ENV', 'prod');
+
+        $this->assertSame("APP_ENV=prod\n", $result);
+    }
+
+    public function testSetEnvLocalValueNormalizesLineEndings(): void
+    {
+        $content = "OTHER=1\r\nAPP_ENV=dev\r\n";
+
+        $result = setEnvLocalValue($content, 'APP_ENV', 'prod');
+
+        $this->assertSame("OTHER=1\nAPP_ENV=prod\n", $result);
+    }
+
     public function testUpdateEnvLocalAppendsAppEnvWhenMissing(): void
     {
         $envPath = $this->createTempDirectory().'/.env.local';
@@ -1545,9 +1588,12 @@ ENV;
         $this->assertStringContainsString('Boom', $html);
         $this->assertStringContainsString('<div class="success">Saved</div>', $html);
         $this->assertStringContainsString('018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1', $html);
-        $this->assertStringContainsString('class="env-form env-form--inline"', $html);
-        $this->assertStringContainsString('class="env-row env-row--inline env-row--grow"', $html);
+        $this->assertStringContainsString('class="env-form env-form--stack"', $html);
         $this->assertStringContainsString('class="env-input env-input--uuid"', $html);
+        $this->assertStringContainsString('class="input-group"', $html);
+        $this->assertStringContainsString('class="input-group-append"', $html);
+        $this->assertStringContainsString('name="regenerate_install_uuid"', $html);
+        $this->assertStringContainsString('name="save_install_uuid"', $html);
         $this->assertStringContainsString('<title>Installer · OakEngine Installer</title>', $html);
         $this->assertStringContainsString('oakengine-logo-1', $html);
         $this->assertStringContainsString('<h1>OakEngine Installer</h1>', $html);
@@ -1595,9 +1641,18 @@ ENV;
         $this->assertStringNotContainsString('<p>ignored</p>', $html);
         $this->assertStringContainsString('dashboard-btn active', $html);
         $this->assertStringContainsString('view=databases', $html);
+        $this->assertStringContainsString('class="env-section-header"', $html);
+        $this->assertStringContainsString('class="env-section-title"', $html);
+        $this->assertStringContainsString('class="env-divider"', $html);
         $this->assertStringContainsString('class="env-form env-form--stack"', $html);
+        $this->assertStringContainsString('class="input-group"', $html);
+        $this->assertStringContainsString('input-group-append', $html);
+        $this->assertStringContainsString('input-group-append--danger', $html);
         $this->assertStringContainsString('class="env-row env-row--stack env-row--wide"', $html);
         $this->assertStringContainsString('class="env-input env-input--wide"', $html);
+        $this->assertStringContainsString('Active Database:', $html);
+        $this->assertStringContainsString('Add database', $html);
+        $this->assertStringContainsString('Remove database:', $html);
         $this->assertStringContainsString('<input type="hidden" name="view" value="databases">', $html);
         $this->assertStringContainsString('data-confirm-title="Run migrations"', $html);
         $this->assertStringContainsString('data-confirm-message="Are you sure you want to run database migrations?"', $html);
@@ -1619,8 +1674,10 @@ ENV;
 
         $this->assertStringContainsString('<span class="dropdown-label">-</span>', $html);
         $this->assertStringContainsString('class="dropdown dropdown-db is-disabled"', $html);
-        $this->assertStringContainsString('name="save_env" class="btn btn-secondary btn-small" disabled', $html);
-        $this->assertStringContainsString('name="remove_database" class="btn btn-small" disabled', $html);
+        $this->assertStringContainsString('name="save_env" value="1"', $html);
+        $this->assertStringContainsString('name="remove_database" value="1"', $html);
+        $this->assertStringContainsString('input-group-append--danger', $html);
+        $this->assertStringContainsString('disabled', $html);
     }
 
     public function testRenderPageWithoutEnvPathHasNoDashboardNav(): void
@@ -1669,8 +1726,13 @@ ENV;
 
         $html = renderPage('Installer', '<p>x</p>', null, $envPath, false, 'environment');
 
-        $this->assertStringContainsString('class="env-input env-input--secret"', $html);
+        $this->assertStringContainsString('env-input--secret', $html);
         $this->assertStringContainsString('name="app_secret" value="my-existing-app-secret-12345678"', $html);
+        $this->assertStringContainsString('class="env-textarea"', $html);
+        $this->assertStringContainsString('name="env_content"', $html);
+        $this->assertStringContainsString('name="save_env_content"', $html);
+        $this->assertStringContainsString('class="input-group"', $html);
+        $this->assertStringContainsString('class="input-group-append"', $html);
         $this->assertStringContainsString('name="regenerate_app_secret"', $html);
         $this->assertStringNotContainsString('name="save_app_secret"', $html);
         $this->assertStringNotContainsString('view=app-secret', $html);
@@ -1694,6 +1756,30 @@ ENV;
         $this->assertStringContainsString('<input type="hidden" name="itab" value="tags">', $html);
 
         unset($_GET['view'], $_GET['itab']);
+    }
+
+    public function testRenderPageInstallUuidViewMatchesEnvironmentStyle(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $GLOBALS['availableLangs'] = ['en', 'de'];
+        $_SESSION['lang'] = 'en';
+
+        $targetDir = $this->createTempDirectory();
+        $envPath = $targetDir.'/.env.local';
+        file_put_contents(
+            $envPath,
+            "APP_ENV=prod\nINSTALL_UUID=019e96ae-46c7-7a9f-b9d4-250a021b5ce4\n"
+        );
+
+        $html = renderPage('Installer', '<p>x</p>', null, $envPath, false, 'install-uuid');
+
+        $this->assertStringContainsString('class="env-form env-form--stack"', $html);
+        $this->assertStringContainsString('class="input-group"', $html);
+        $this->assertStringContainsString('class="input-group-append"', $html);
+        $this->assertStringContainsString('name="install_uuid" value="019e96ae-46c7-7a9f-b9d4-250a021b5ce4"', $html);
+        $this->assertStringContainsString('name="regenerate_install_uuid"', $html);
+        $this->assertStringContainsString('name="save_install_uuid"', $html);
+        $this->assertStringNotContainsString('class="env-form env-form--inline"', $html);
     }
 
     public function testRenderConfirmAttributesEscapesHtml(): void

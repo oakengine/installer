@@ -112,6 +112,28 @@ function saveEnvLocalContent(string $envPath, string $content): bool
     return false !== file_put_contents($envPath, $normalized);
 }
 
+/**
+ * Sets (or appends) a `KEY=value` line inside .env.local content.
+ *
+ * - Existing lines (commented or uncommented) are replaced in place.
+ * - Missing keys are appended at the end of the content.
+ * - Line endings are normalized to "\n".
+ */
+function setEnvLocalValue(string $content, string $key, string $value): string
+{
+    $normalizedContent = str_replace(["\r\n", "\r"], "\n", $content);
+    $pattern = '/^\s*#?\s*'.preg_quote($key, '/').'\s*=.*$/m';
+    $line = $key.'='.$value;
+
+    if (1 === preg_match($pattern, $normalizedContent)) {
+        return (string) preg_replace($pattern, $line, $normalizedContent, 1);
+    }
+
+    $trimmedContent = rtrim($normalizedContent, "\n");
+
+    return ('' === $trimmedContent ? '' : $trimmedContent."\n").$line."\n";
+}
+
 function addDatabaseToEnvLocal(string $envPath, string $dbId, string $dbUrl): bool
 {
     if (!file_exists($envPath)) {
