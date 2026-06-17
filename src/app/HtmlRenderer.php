@@ -121,12 +121,18 @@ function renderDropdown(string $name, array $options, string $selectedValue = ''
 }
 
 /**
- * Renders a modern status overview as a responsive grid of icon-prefixed cards.
- * Each item value is treated as trusted HTML; callers are responsible for escaping.
+ * Renders the home page as a read-only info box plus a set of actionable
+ * sub-area cards. Each card contains a list of items; items may carry an
+ * `action` URL rendered as a gear-icon button.
  *
- * @param list<array{icon: string, label: string, value: string}> $items
+ * Item value is treated as trusted HTML; callers are responsible for escaping.
+ * Icon names map to the Lucide-style paths bundled in this file.
+ *
+ * @param string                                                                                                                                                         $infoFooterHtml Optional trusted HTML appended to the System card body
+ * @param list<array{icon: string, label: string, value: string, action_html?: string}>                                                                                  $infoItems
+ * @param list<array{title: string, icon: string, href: string, items: list<array{icon: string, label: string, value: string, action?: string, action_title?: string}>}> $sections
  */
-function renderStatusOverview(array $items): string
+function renderHomeSections(string $infoTitle, array $infoItems, array $sections, string $infoFooterHtml = ''): string
 {
     $paths = [
         'installer' => '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/>',
@@ -135,7 +141,20 @@ function renderStatusOverview(array $items): string
         'data' => '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
         'endpoint' => '<rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/>',
         'folder' => '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+        'folder-tree' => '<path d="M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"/><path d="M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.9a1 1 0 0 1-.88-.55l-.42-.85a1 1 0 0 0-.92-.6H13a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"/><path d="M3 5a2 2 0 0 0 2 2h3"/><path d="M3 3v13a2 2 0 0 0 2 2h3"/>',
+        'hard-drive' => '<line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/>',
         'shield' => '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+        'settings' => '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+        'database' => '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+        'fingerprint' => '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>',
+        'wrench' => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>',
+        'download' => '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
+        'info' => '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+        'code' => '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+        'puzzle' => '<path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568a2.402 2.402 0 0 1-.706-1.704c0-.617.236-1.234.706-1.704L4.81 9.475a.98.98 0 0 1 .837-.276c.47.07.802.48.967.925a2.501 2.501 0 1 0 3.214-3.214c-.445-.166-.854-.497-.925-.968a.98.98 0 0 1 .276-.837l1.611-1.611A2.405 2.405 0 0 1 11.485 2.1c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.075.84-.504 1.02-.969a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z"/>',
+        'upload-cloud' => '<path d="M4 14.899A7 7 0 1 1 15 21h-1"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/>',
+        'clock' => '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+        'memory-stick' => '<path d="M6 19v-3"/><path d="M10 19v-3"/><path d="M14 19v-3"/><path d="M18 19v-3"/><path d="M8 7V5"/><path d="M16 7V5"/><path d="M12 7V5"/><path d="M12 12V8"/><rect width="20" height="14" x="2" y="3" rx="2"/>',
     ];
 
     $icons = [];
@@ -143,18 +162,60 @@ function renderStatusOverview(array $items): string
         $icons[$iconKey] = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'.$iconPath.'</svg>';
     }
 
-    $rows = '';
-    foreach ($items as $item) {
-        $iconSvg = $icons[$item['icon']] ?? '';
-        $rows .= '<div class="status-item">'
-            .'<span class="status-icon" aria-hidden="true">'.$iconSvg.'</span>'
-            .'<div class="status-body">'
-            .'<span class="status-label">'.htmlspecialchars($item['label']).'</span>'
-            .'<div class="status-value">'.$item['value'].'</div>'
-            .'</div></div>';
+    $infoRows = '';
+    foreach ($infoItems as $item) {
+        $iconKey = (string) ($item['icon'] ?? '');
+        $iconSvg = '' !== $iconKey ? ($icons[$iconKey] ?? '') : '';
+        $iconHtml = '' !== $iconSvg ? '<span class="info-list-icon" aria-hidden="true">'.$iconSvg.'</span>' : '';
+        $actionHtml = isset($item['action_html']) ? (string) $item['action_html'] : '';
+        $infoRows .= '<li class="info-list-item">'
+            .$iconHtml
+            .'<div class="info-list-body">'
+            .'<span class="info-list-label">'.htmlspecialchars($item['label']).'</span>'
+            .'<span class="info-list-value">'.$item['value'].'</span>'
+            .'</div>'.$actionHtml.'</li>';
     }
 
-    return '<section class="status-overview">'.$rows.'</section>';
+    $infoTitleSvg = $icons['info'];
+    $infoFooter = '' !== $infoFooterHtml ? '<div class="home-info-footer">'.$infoFooterHtml.'</div>' : '';
+    $infoCard = '<article class="home-card">'
+        .'<div class="home-card-header home-card-header--static">'
+        .'<span class="home-card-title"><span class="home-card-icon" aria-hidden="true">'.$infoTitleSvg.'</span>'.htmlspecialchars($infoTitle).'</span>'
+        .'</div>'
+        .'<ul class="info-list">'.$infoRows.'</ul>'
+        .$infoFooter
+        .'</article>';
+
+    $cardsHtml = $infoCard;
+    foreach ($sections as $section) {
+        $sectionIconSvg = $icons[$section['icon']] ?? '';
+        $itemsHtml = '';
+        foreach ($section['items'] as $item) {
+            $itemIconSvg = $icons[$item['icon']] ?? '';
+            $actionHtml = '';
+            if (isset($item['action']) && '' !== $item['action']) {
+                $actionTitle = isset($item['action_title']) ? htmlspecialchars($item['action_title']) : '';
+                $actionHtml = '<a class="info-list-action" href="'.htmlspecialchars($item['action']).'" title="'.$actionTitle.'" aria-label="'.$actionTitle.'">'.lucideIcon('settings', 16).'</a>';
+            }
+            $itemsHtml .= '<li class="info-list-item">'
+                .'<span class="info-list-icon" aria-hidden="true">'.$itemIconSvg.'</span>'
+                .'<div class="info-list-body">'
+                .'<span class="info-list-label">'.htmlspecialchars($item['label']).'</span>'
+                .'<span class="info-list-value">'.$item['value'].'</span>'
+                .'</div>'.$actionHtml.'</li>';
+        }
+        $sectionHref = htmlspecialchars($section['href']);
+        $sectionTitle = htmlspecialchars($section['title']);
+        $cardsHtml .= '<article class="home-card">'
+            .'<a class="home-card-header" href="'.$sectionHref.'">'
+            .'<span class="home-card-title"><span class="home-card-icon" aria-hidden="true">'.$sectionIconSvg.'</span>'.$sectionTitle.'</span>'
+            .'<span class="home-card-cta" aria-hidden="true">'.lucideIcon('arrow-right', 16).'</span>'
+            .'</a>'
+            .'<ul class="info-list">'.$itemsHtml.'</ul>'
+            .'</article>';
+    }
+
+    return '<div class="home-stack">'.$cardsHtml.'</div>';
 }
 
 /**
@@ -172,6 +233,7 @@ function lucideIcon(string $name, int $size = 16): string
         'fingerprint' => '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>',
         'wrench' => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>',
         'download' => '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
+        'info' => '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
         'trash-2' => '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
         'save' => '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
         'play' => '<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
@@ -181,8 +243,14 @@ function lucideIcon(string $name, int $size = 16): string
         'log-in' => '<path d="m10 17 5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>',
         'log-out' => '<path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>',
         'external-link' => '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+        'arrow-right' => '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
         'git-branch' => '<path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>',
         'tag' => '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+        'runner' => '<path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09"/><path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05"/>',
+        'plugin' => '<path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/>',
+        'data' => '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+        'archive' => '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+        'hard-drive' => '<line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/>',
     ];
 
     $inner = $map[$name] ?? '';
@@ -1121,28 +1189,24 @@ HTML;
         border-radius: 6px;
         font-size: 0.85em;
     }
-    .status-overview {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 12px;
-        margin-bottom: 24px;
-    }
-    .status-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 13px;
-        padding: 14px 16px;
-        background: var(--surface);
+    .info-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+        background: var(--surface);
+        overflow: hidden;
     }
-    .status-item:hover {
-        border-color: var(--border-strong);
-        box-shadow: var(--shadow-sm);
-        transform: translateY(-1px);
+    .info-list-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
     }
-    .status-icon {
+    .info-list-item:last-child { border-bottom: none; }
+    .info-list-icon {
         flex: none;
         display: grid;
         place-items: center;
@@ -1152,16 +1216,15 @@ HTML;
         background: color-mix(in srgb, var(--brand) 12%, var(--surface));
         color: var(--brand-strong);
     }
-    .status-icon svg { width: 19px; height: 19px; display: block; }
-    .status-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; flex: 1; }
-    .status-label {
-        font-size: 0.71rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.07em;
-        color: var(--text-soft);
+    .info-list-icon svg { width: 19px; height: 19px; display: block; }
+    .info-list-body { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 1; flex-wrap: wrap; }
+    .info-list-label {
+        font-size: 0.92rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        flex: 0 0 auto;
     }
-    .status-value {
+    .info-list-value {
         font-size: 0.92rem;
         color: var(--text);
         line-height: 1.5;
@@ -1169,11 +1232,68 @@ HTML;
         display: flex;
         flex-wrap: wrap;
         align-items: center;
+        justify-content: flex-end;
         gap: 7px;
+        min-width: 0;
     }
-    .status-value em { color: var(--text-soft); font-style: normal; }
-    .status-value a { color: var(--brand-strong); text-decoration: none; font-size: 0.8em; font-weight: 600; }
-    .status-value a:hover { text-decoration: underline; }
+    .info-list-value em { color: var(--text-soft); font-style: normal; }
+    .info-list-value a { color: var(--brand-strong); text-decoration: none; font-size: 0.85em; font-weight: 600; }
+    .info-list-value a:hover { text-decoration: underline; }
+    .info-list-action {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        color: var(--text-muted);
+        background: var(--surface-muted);
+        border: 1px solid var(--border);
+        text-decoration: none;
+        transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+    .info-list-action:hover { color: var(--brand-strong); border-color: var(--brand); background: var(--surface); box-shadow: var(--shadow-sm); }
+    .info-list-action:focus-visible { outline: none; box-shadow: var(--ring); }
+    .info-list-action svg { width: 16px; height: 16px; display: block; }
+    .home-stack { display: flex; flex-direction: column; gap: 16px; margin-bottom: 22px; }
+    .home-card-header--static { cursor: default; }
+    .home-card-header--static:hover { background: var(--surface-muted); color: var(--text); }
+    .home-info-footer { border-top: 1px solid var(--border); padding: 14px 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .home-info-footer form { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex: 1; }
+    .info-list-action-form { flex: 0 0 auto; display: inline-flex; margin: 0; }
+    .info-list-meta { color: var(--text-muted); font-size: 0.85em; font-family: var(--font-mono); margin-left: 6px; }
+    .info-list-action--danger:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); box-shadow: var(--shadow-sm); }
+    .updates-header-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 14px 18px; }
+    .updates-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .updates-meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .updates-meta-label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-soft); }
+    .updates-meta-value { font-size: 0.95rem; color: var(--text); }
+    .updates-refresh-form { flex: 0 0 auto; }
+    .updates-list { padding: 0; }
+    .updates-empty { margin: 0; padding: 16px 18px; color: var(--text-soft); font-style: normal; font-size: 0.9rem; }
+    .updates-section-card .tag-list { border: none; border-radius: 0; }
+    .updates-section-card .tag-list li:last-child { border-bottom: none; }
+    .home-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
+    .home-card-header {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface-muted);
+        text-decoration: none;
+        color: var(--text);
+        transition: background 0.15s ease, color 0.15s ease;
+    }
+    .home-card-header:hover { background: color-mix(in srgb, var(--brand) 8%, var(--surface-muted)); color: var(--brand-strong); }
+    .home-card-header:focus-visible { outline: none; box-shadow: var(--ring); }
+    .home-card-title { display: inline-flex; align-items: center; gap: 8px; font-size: 0.92rem; font-weight: 650; }
+    .home-card-icon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--brand-soft); color: var(--brand-strong); }
+    .home-card-icon svg { width: 14px; height: 14px; display: block; }
+    .home-card-cta { color: var(--text-soft); display: inline-grid; place-items: center; }
+    .home-card-cta svg { width: 16px; height: 16px; display: block; }
+    .home-card-header:hover .home-card-cta { color: var(--brand-strong); }
+    .home-card .info-list { border: none; border-radius: 0; }
+    .home-card .info-list-item { padding: 12px 16px; }
     .status-badge {
         font-size: 0.68rem;
         font-weight: 600;
@@ -1494,7 +1614,7 @@ HTML;
         transition: background .15s ease, color .15s ease;
     }
     .modal-close:hover { background: var(--surface-muted); color: var(--text); }
-    .modal-body { padding: 14px 18px 18px; overflow-y: auto; }
+    .modal-body { padding: 14px 18px 18px; overflow-y: auto; border-bottom-left-radius: var(--radius-lg); border-bottom-right-radius: var(--radius-lg); scrollbar-gutter: stable; }
     .confirm-message { color: var(--text); line-height: 1.55; margin: 0; }
     .modal-actions {
         display: flex;

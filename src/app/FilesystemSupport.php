@@ -3,6 +3,62 @@
 declare(strict_types=1);
 
 /**
+ * Returns the total size in bytes of all files inside the given directory tree.
+ * Returns 0 if the directory does not exist or cannot be read.
+ */
+function getDirectorySize(string $directory): int
+{
+    if (!is_dir($directory)) {
+        return 0;
+    }
+
+    $total = 0;
+    try {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ($iterator as $item) {
+            if (!$item instanceof SplFileInfo) {
+                continue;
+            }
+            if ($item->isFile()) {
+                $size = $item->getSize();
+                if (is_int($size) && $size > 0) {
+                    $total += $size;
+                }
+            }
+        }
+    } catch (Exception) {
+        return $total;
+    }
+
+    return $total;
+}
+
+/**
+ * Formats a byte count as a human-readable string (e.g. "12.4 MB").
+ */
+function formatFileSize(int $bytes): string
+{
+    if ($bytes <= 0) {
+        return '0 B';
+    }
+
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    $power = (int) floor(log($bytes, 1024));
+    $power = min($power, count($units) - 1);
+    $value = $bytes / (1024 ** $power);
+    $formatted = number_format($value, $power > 0 ? 1 : 0, '.', '');
+
+    if (str_contains($formatted, '.')) {
+        $formatted = rtrim(rtrim($formatted, '0'), '.');
+    }
+
+    return $formatted.$units[$power];
+}
+
+/**
  * @return array{deleted_count: int, errors: array<string>}
  */
 function clearCacheDirectory(string $cacheDir): array

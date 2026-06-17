@@ -205,9 +205,10 @@ final class InstallerApplication
                 : '';
             $dashboardState = resolveDashboardState($_GET['view'] ?? null, $_GET['itab'] ?? null, $_POST['view'] ?? null, $_POST['itab'] ?? null);
             $dashboardBackHref = buildDashboardViewHref($dashboardState['view'], $dashboardState['itab']);
-            $runnerClient = new ProjectPackageApiClient($projectApiUrl, 'runner', $installUuid, $projectApiToken);
-            $pluginClient = new ProjectPackageApiClient($projectApiUrl, 'plugin', $installUuid, $projectApiToken);
-            $dataClient = new ProjectPackageApiClient($projectApiUrl, 'data', $installUuid, $projectApiToken);
+            $packageCacheDir = rtrim($targetDirFinal, '/').'/var/cache/packages';
+            $runnerClient = new ProjectPackageApiClient($projectApiUrl, 'runner', $installUuid, $projectApiToken, $packageCacheDir);
+            $pluginClient = new ProjectPackageApiClient($projectApiUrl, 'plugin', $installUuid, $projectApiToken, $packageCacheDir);
+            $dataClient = new ProjectPackageApiClient($projectApiUrl, 'data', $installUuid, $projectApiToken, $packageCacheDir);
             $archiveExtractor = new ProjectPackageArchiveExtractor();
 
             if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['save_env'])) {
@@ -391,6 +392,20 @@ final class InstallerApplication
                 }
                 $content .= '</div>';
                 echo renderPage(resolveLangKey('cache_cleared', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view'], $content);
+                exit;
+            }
+
+            if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['refresh_packages'])) {
+                $envPath = rtrim($targetDirFinal, '/').'/.env.local';
+                try {
+                    $runnerClient->refreshPackages();
+                    $pluginClient->refreshPackages();
+                    $dataClient->refreshPackages();
+                    $content = '<div class="success">'.resolveLangKey('updates_refreshed', $langForGlobal).'</div>';
+                } catch (Exception $refreshError) {
+                    $content = '<div class="error">'.htmlspecialchars($refreshError->getMessage()).'</div>';
+                }
+                echo renderPage(resolveLangKey('dashboard_installations', $langForGlobal), '', null, $envPath, !empty($config['password'] ?? ''), 'updates', $content);
                 exit;
             }
 
@@ -630,27 +645,59 @@ final class InstallerApplication
                 exit;
             }
 
-            $statusItems = [
-                [
-                    'icon' => 'installer',
-                    'label' => resolveLangKey('updater_version', $langForGlobal),
-                    'value' => formatVersionBadge($currentInstallerVersion).' <a href="?view=installer">'.lucideIcon('wrench', 13).' '.resolveLangKey('manage', $langForGlobal).'</a>',
-                ],
-                [
-                    'icon' => 'runner',
-                    'label' => resolveLangKey('runner_version', $langForGlobal),
-                    'value' => formatVersionBadge($currentProjectVersion),
-                ],
-                [
-                    'icon' => 'plugin',
-                    'label' => resolveLangKey('installed_plugins', $langForGlobal),
-                    'value' => $installedPluginHtml,
-                ],
-                [
-                    'icon' => 'data',
-                    'label' => resolveLangKey('installed_data', $langForGlobal),
-                    'value' => $installedDataHtml,
-                ],
+            $configureLabel = resolveLangKey('home_configure_item', $langForGlobal);
+            $homeEnvConfig = parseEnvLocal(rtrim($targetDirStr, '/').'/.env.local');
+            $homeEnvValue = static function (string $key, string $default = '') use ($homeEnvConfig): string {
+                $value = $homeEnvConfig[$key] ?? null;
+                if (is_string($value)) {
+                    return $value;
+                }
+                if (is_scalar($value)) {
+                    return (string) $value;
+                }
+
+                return $default;
+            };
+            $homeEnvDisplay = static function (string $value, int $maxLen = 0): string {
+                if ('' === $value) {
+                    return '';
+                }
+                $shown = $maxLen > 0 && strlen($value) > $maxLen ? substr($value, 0, $maxLen).'…' : $value;
+
+                return '<code>'.htmlspecialchars($shown).'</code>';
+            };
+
+            $cacheDirPath = rtrim($targetDirStr, '/').'/var';
+            $cacheSizeBytes = getDirectorySize($cacheDirPath);
+            $textClearCache = resolveLangKey('clear_cache', $langForGlobal);
+            $textConfirmClearCache = resolveLangKey('confirm_clear_cache', $langForGlobal);
+            $textCacheSize = resolveLangKey('cache_size', $langForGlobal);
+            $clearCacheConfirmAttr = renderConfirmAttributes($textClearCache, $textConfirmClearCache, $textClearCache);
+            $trashIcon = lucideIcon('trash-2', 16);
+            $cacheItemActionHtml = '<form method="post" class="info-list-action-form"'.$clearCacheConfirmAttr.'>'
+                .'<input type="hidden" name="view" value="">'
+                .'<button type="submit" name="clear_cache" class="info-list-action info-list-action--danger" title="'.htmlspecialchars($textClearCache).'" aria-label="'.htmlspecialchars($textClearCache).'">'.$trashIcon.'</button>'
+                .'</form>';
+
+            $phpVersion = PHP_VERSION;
+            $phpModules = get_loaded_extensions();
+            sort($phpModules, SORT_NATURAL | SORT_FLAG_CASE);
+            $phpModulesCount = count($phpModules);
+            $textPhpModules = resolveLangKey('php_modules', $langForGlobal);
+            $textPhpModulesCount = resolveLangKey('php_modules_count', $langForGlobal, ['count' => $phpModulesCount]);
+            $phpModulesListHtml = '';
+            foreach ($phpModules as $module) {
+                $phpModulesListHtml .= '<li><code>'.htmlspecialchars($module).'</code></li>';
+            }
+            $phpModulesActionHtml = '<button type="button" class="info-list-action" data-modal-open="modal-php-modules" title="'.htmlspecialchars($textPhpModules).'" aria-label="'.htmlspecialchars($textPhpModules).'">'.lucideIcon('info', 16).'</button>';
+            $phpModulesModalHtml = renderModal('modal-php-modules', $textPhpModules, '<ul class="modal-list">'.$phpModulesListHtml.'</ul>', resolveLangKey('close', $langForGlobal));
+
+            $uploadMaxFilesize = (string) ini_get('upload_max_filesize');
+            $postMaxSize = (string) ini_get('post_max_size');
+            $maxExecutionTime = (string) ini_get('max_execution_time');
+            $memoryLimit = (string) ini_get('memory_limit');
+
+            $homeInfoItems = [
                 [
                     'icon' => 'endpoint',
                     'label' => resolveLangKey('repository', $langForGlobal),
@@ -661,32 +708,198 @@ final class InstallerApplication
                     'label' => resolveLangKey('target_directory', $langForGlobal),
                     'value' => '<code>'.htmlspecialchars($targetDirStr).'</code>',
                 ],
+                [
+                    'icon' => 'code',
+                    'label' => resolveLangKey('php_version', $langForGlobal),
+                    'value' => '<code>'.htmlspecialchars($phpVersion).'</code>',
+                ],
+                [
+                    'icon' => 'puzzle',
+                    'label' => $textPhpModules,
+                    'value' => '<span class="info-list-meta">'.htmlspecialchars($textPhpModulesCount).'</span>',
+                    'action_html' => $phpModulesActionHtml,
+                ],
+                [
+                    'icon' => 'upload-cloud',
+                    'label' => resolveLangKey('upload_limit', $langForGlobal),
+                    'value' => '<code>'.htmlspecialchars($uploadMaxFilesize).'</code> · <span class="info-list-meta">'.htmlspecialchars(resolveLangKey('post_max_size', $langForGlobal)).': <code>'.htmlspecialchars($postMaxSize).'</code></span>',
+                ],
+                [
+                    'icon' => 'clock',
+                    'label' => resolveLangKey('max_execution_time', $langForGlobal),
+                    'value' => '<code>'.htmlspecialchars($maxExecutionTime).'</code> <span class="info-list-meta">'.htmlspecialchars(resolveLangKey('seconds', $langForGlobal)).'</span>',
+                ],
+                [
+                    'icon' => 'memory-stick',
+                    'label' => resolveLangKey('memory_limit', $langForGlobal),
+                    'value' => '<code>'.htmlspecialchars($memoryLimit).'</code>',
+                ],
+                [
+                    'icon' => 'hard-drive',
+                    'label' => $textCacheSize,
+                    'value' => '<code>'.htmlspecialchars($cacheDirPath).'</code> · <span class="info-list-meta">'.htmlspecialchars(formatFileSize($cacheSizeBytes)).'</span>',
+                    'action_html' => $cacheItemActionHtml,
+                ],
+            ];
+            $homeSections = [
+                [
+                    'title' => resolveLangKey('home_section_configuration', $langForGlobal),
+                    'icon' => 'settings',
+                    'href' => '?view=environment',
+                    'items' => [
+                        [
+                            'icon' => 'settings',
+                            'label' => resolveLangKey('mode', $langForGlobal),
+                            'value' => $homeEnvDisplay(strtolower($homeEnvValue('app_env', 'prod'))) ?: '<em>'.htmlspecialchars(resolveLangKey('none_installed', $langForGlobal)).'</em>',
+                            'action' => '?view=environment',
+                            'action_title' => $configureLabel,
+                        ],
+                        [
+                            'icon' => 'shield',
+                            'label' => resolveLangKey('app_secret', $langForGlobal),
+                            'value' => '' !== $homeEnvValue('app_secret') ? $homeEnvDisplay($homeEnvValue('app_secret'), 8) : '<em>'.htmlspecialchars(resolveLangKey('app_secret_invalid', $langForGlobal)).'</em>',
+                            'action' => '?view=environment',
+                            'action_title' => $configureLabel,
+                        ],
+                        [
+                            'icon' => 'fingerprint',
+                            'label' => resolveLangKey('install_uuid', $langForGlobal),
+                            'value' => '' !== $homeEnvValue('install_uuid') ? $homeEnvDisplay($homeEnvValue('install_uuid')) : '<em>'.htmlspecialchars(resolveLangKey('none_installed', $langForGlobal)).'</em>',
+                            'action' => '?view=install-uuid',
+                            'action_title' => $configureLabel,
+                        ],
+                        [
+                            'icon' => 'database',
+                            'label' => resolveLangKey('database', $langForGlobal),
+                            'value' => '' !== $homeEnvValue('current_db') ? $homeEnvDisplay($homeEnvValue('current_db')) : '<em>'.htmlspecialchars(resolveLangKey('none_installed', $langForGlobal)).'</em>',
+                            'action' => '?view=databases',
+                            'action_title' => $configureLabel,
+                        ],
+                    ],
+                ],
+                [
+                    'title' => resolveLangKey('home_section_installations', $langForGlobal),
+                    'icon' => 'download',
+                    'href' => '?view=updates',
+                    'items' => [
+                        [
+                            'icon' => 'runner',
+                            'label' => resolveLangKey('runner_version', $langForGlobal),
+                            'value' => formatVersionBadge($currentProjectVersion),
+                            'action' => '?view=updates',
+                            'action_title' => $configureLabel,
+                        ],
+                        [
+                            'icon' => 'plugin',
+                            'label' => resolveLangKey('installed_plugins', $langForGlobal),
+                            'value' => $installedPluginHtml,
+                            'action' => '?view=updates',
+                            'action_title' => $configureLabel,
+                        ],
+                        [
+                            'icon' => 'folder-tree',
+                            'label' => resolveLangKey('installed_data', $langForGlobal),
+                            'value' => $installedDataHtml,
+                            'action' => '?view=updates',
+                            'action_title' => $configureLabel,
+                        ],
+                    ],
+                ],
+                [
+                    'title' => resolveLangKey('home_section_installer', $langForGlobal),
+                    'icon' => 'wrench',
+                    'href' => '?view=installer',
+                    'items' => [
+                        [
+                            'icon' => 'installer',
+                            'label' => resolveLangKey('updater_version', $langForGlobal),
+                            'value' => formatVersionBadge($currentInstallerVersion),
+                            'action' => '?view=installer',
+                            'action_title' => $configureLabel,
+                        ],
+                    ],
+                ],
             ];
 
-            $statusOverview = renderStatusOverview($statusItems);
+            $statusOverview = renderHomeSections(resolveLangKey('home_section_system', $langForGlobal), $homeInfoItems, $homeSections);
 
             $envPath = rtrim($targetDirStr, '/').'/.env.local';
             $hasPassword = (isset($config['password']) && is_scalar($config['password']) && '' !== (string) $config['password']);
             $view = resolveDashboardView($_GET['view'] ?? null);
 
             if ('updates' === $view) {
-                $runnerPackageHtml = renderPackageListHtml($runnerClient->listPackages(), 'runner', $langForGlobal);
-                $pluginPackageHtml = renderPackageListHtml($pluginClient->listPackages(), 'plugin', $langForGlobal);
-                $dataPackageHtml = renderPackageListHtml($dataClient->listPackages(), 'data', $langForGlobal);
-                $text_confirm_clear_cache = resolveLangKey('confirm_clear_cache', $langForGlobal);
-                $clearCacheConfirmAttr = renderConfirmAttributes(
-                    resolveLangKey('clear_cache', $langForGlobal),
-                    $text_confirm_clear_cache,
-                    resolveLangKey('clear_cache', $langForGlobal),
-                );
-                $content = '<form method="post" style="margin-bottom:20px"'.$clearCacheConfirmAttr.'><button type="submit" name="clear_cache" class="btn btn-secondary">'.lucideIcon('trash-2', 15).' '.resolveLangKey('clear_cache', $langForGlobal).'</button></form>';
-                $content .= '<h3 style="margin-bottom:10px;">Runner</h3><ul class="tag-list" style="margin-bottom:20px;">'.$runnerPackageHtml.'</ul>';
-                $content .= '<h3 style="margin-bottom:10px;">Plugin</h3><ul class="tag-list" style="margin-bottom:20px;">'.$pluginPackageHtml.'</ul>';
-                $content .= '<h3 style="margin-bottom:10px;">Data</h3><ul class="tag-list">'.$dataPackageHtml.'</ul>';
+                $runnerPackages = $runnerClient->listPackages();
+                $pluginPackages = $pluginClient->listPackages();
+                $dataPackages = $dataClient->listPackages();
+                $runnerPackageHtml = renderPackageListHtml($runnerPackages, 'runner', $langForGlobal);
+                $pluginPackageHtml = renderPackageListHtml($pluginPackages, 'plugin', $langForGlobal);
+                $dataPackageHtml = renderPackageListHtml($dataPackages, 'data', $langForGlobal);
+
+                $cacheAges = [
+                    $runnerClient->getCacheAge(),
+                    $pluginClient->getCacheAge(),
+                    $dataClient->getCacheAge(),
+                ];
+                $freshestCacheAge = null;
+                foreach ($cacheAges as $age) {
+                    if (null !== $age && (null === $freshestCacheAge || $age < $freshestCacheAge)) {
+                        $freshestCacheAge = $age;
+                    }
+                }
+                $cacheTtl = (int) $runnerClient->getCacheTtl();
+
+                if (null === $freshestCacheAge) {
+                    $cacheAgeText = '<em>'.resolveLangKey('updates_never_refreshed', $langForGlobal).'</em>';
+                } elseif ($freshestCacheAge < 60) {
+                    $cacheAgeText = $freshestCacheAge.' '.resolveLangKey('updates_cache_seconds', $langForGlobal);
+                } else {
+                    $minutes = (int) floor($freshestCacheAge / 60);
+                    $cacheAgeText = $minutes.' '.resolveLangKey('updates_cache_minutes', $langForGlobal);
+                }
+
+                $iconRefreshCw = lucideIcon('refresh-cw', 16);
+                $textRefreshData = resolveLangKey('updates_refresh_data', $langForGlobal);
+                $textLastRefresh = resolveLangKey('updates_last_refresh', $langForGlobal);
+                $textRunner = resolveLangKey('runner_version', $langForGlobal);
+                $textPlugin = resolveLangKey('installed_plugins', $langForGlobal);
+                $textData = resolveLangKey('installed_data', $langForGlobal);
+
+                $headerCard = '<div class="home-card updates-header-card">'
+                    .'<div class="updates-meta">'
+                    .'<div class="updates-meta-row"><span class="updates-meta-label">'.$textLastRefresh.':</span><span class="updates-meta-value">'.$cacheAgeText.'</span></div>'
+                    .'</div>'
+                    .'<form method="post" class="updates-refresh-form">'
+                    .'<input type="hidden" name="view" value="updates">'
+                    .'<button type="submit" name="refresh_packages" value="1" class="btn btn-secondary">'.$iconRefreshCw.' '.$textRefreshData.'</button>'
+                    .'</form>'
+                    .'</div>';
+
+                $packageSection = static function (string $title, string $icon, string $html) use ($langForGlobal): string {
+                    $iconSvg = lucideIcon($icon, 14);
+                    $empty = '' === trim($html) || '<li><em>'.resolveLangKey('no_tags_found', $langForGlobal).'</em></li>' === trim($html);
+
+                    return '<article class="home-card updates-section-card">'
+                        .'<div class="home-card-header home-card-header--static">'
+                        .'<span class="home-card-title"><span class="home-card-icon" aria-hidden="true">'.$iconSvg.'</span>'.htmlspecialchars($title).'</span>'
+                        .'</div>'
+                        .'<div class="updates-list">'.($empty ? '<p class="updates-empty">'.resolveLangKey('no_tags_found', $langForGlobal).'</p>' : '<ul class="tag-list">'.$html.'</ul>').'</div>'
+                        .'</article>';
+                };
+
+                $content = '<div class="home-stack">'
+                    .$headerCard
+                    .$packageSection($textRunner, 'runner', $runnerPackageHtml)
+                    .$packageSection($textPlugin, 'plugin', $pluginPackageHtml)
+                    .$packageSection($textData, 'data', $dataPackageHtml)
+                    .'</div>';
             } elseif (in_array($view, ['environment', 'databases', 'install-uuid'], true)) {
                 $content = '';
             } else {
-                $content = $statusOverview;
+                $content = renderHomeSections(
+                    resolveLangKey('home_section_system', $langForGlobal),
+                    $homeInfoItems,
+                    $homeSections,
+                ).$phpModulesModalHtml;
             }
 
             echo renderPage(resolveLangKey('title', $langForGlobal), $content, null, $envPath, $hasPassword, $view);

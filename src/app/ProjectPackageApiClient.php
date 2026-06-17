@@ -6,11 +6,14 @@ namespace Oak\Engine\Installer;
 
 final readonly class ProjectPackageApiClient
 {
+    private const CACHE_TTL_SECONDS = 300;
+
     public function __construct(
         private string $baseUrl,
         private string $packageType = 'runner',
         private string $installUuid = '',
         private string $projectApiToken = '',
+        private ?string $cacheDirectory = null,
     ) {
     }
 
@@ -27,7 +30,91 @@ final readonly class ProjectPackageApiClient
      *     composer: array<string, mixed>
      * }>
      */
-    public function listPackages(): array
+    public function listPackages(bool $forceRefresh = false): array
+    {
+        if (!$forceRefresh) {
+            $cached = $this->readCache();
+            if (null !== $cached) {
+                return $cached;
+            }
+        }
+
+        $packages = $this->fetchPackages();
+        $this->writeCache($packages);
+
+        return $packages;
+    }
+
+    /**
+     * Force a refresh from the API and return the fresh package list.
+     *
+     * @return list<array{
+     *     package_type: string,
+     *     package_id: string,
+     *     version: string,
+     *     channel: string,
+     *     package_name: string,
+     *     archive_size: int,
+     *     archive_sha256: string,
+     *     download_url: string,
+     *     composer: array<string, mixed>
+     * }>
+     */
+    public function refreshPackages(): array
+    {
+        return $this->listPackages(true);
+    }
+
+    /**
+     * Returns the cache age in seconds, or null when no cache exists.
+     */
+    public function getCacheAge(): ?int
+    {
+        $cacheFile = $this->getCacheFile();
+        if (null === $cacheFile || !is_file($cacheFile)) {
+            return null;
+        }
+        $mtime = filemtime($cacheFile);
+        if (false === $mtime) {
+            return null;
+        }
+
+        return max(0, time() - $mtime);
+    }
+
+    /**
+     * Returns the cache TTL in seconds.
+     */
+    public function getCacheTtl(): int
+    {
+        return self::CACHE_TTL_SECONDS;
+    }
+
+    /**
+     * Invalidates any cached package list for this client.
+     */
+    public function invalidateCache(): void
+    {
+        $cacheFile = $this->getCacheFile();
+        if (null !== $cacheFile && is_file($cacheFile)) {
+            @unlink($cacheFile);
+        }
+    }
+
+    /**
+     * @return list<array{
+     *     package_type: string,
+     *     package_id: string,
+     *     version: string,
+     *     channel: string,
+     *     package_name: string,
+     *     archive_size: int,
+     *     archive_sha256: string,
+     *     download_url: string,
+     *     composer: array<string, mixed>
+     * }>
+     */
+    private function fetchPackages(): array
     {
         $response = $this->request([
             'type' => $this->packageType,
@@ -276,5 +363,110 @@ final readonly class ProjectPackageApiClient
         }
 
         return $normalized;
+    }
+
+    private function getCacheFile(): ?string
+    {
+        $cacheDir = $this->cacheDirectory;
+        if (null === $cacheDir || '' === $cacheDir) {
+            return null;
+        }
+
+        $type = preg_replace('/[^a-z0-9_-]+/i', '_', $this->packageType) ?? 'package';
+        $base = preg_replace('/[^a-zA-Z0-9]+/', '_', rtrim($this->baseUrl, '/')) ?? 'endpoint';
+
+        return rtrim($cacheDir, '/').'/'.md5($base.'|'.$type.'|'.$this->installUuid).'.json';
+    }
+
+    /**
+     * @return list<array{
+     *     package_type: string,
+     *     package_id: string,
+     *     version: string,
+     *     channel: string,
+     *     package_name: string,
+     *     archive_size: int,
+     *     archive_sha256: string,
+     *     download_url: string,
+     *     composer: array<string, mixed>
+     * }>|null
+     */
+    private function readCache(): ?array
+    {
+        $cacheFile = $this->getCacheFile();
+        if (null === $cacheFile || !is_file($cacheFile)) {
+            return null;
+        }
+
+        $mtime = filemtime($cacheFile);
+        if (false === $mtime || (time() - $mtime) >= self::CACHE_TTL_SECONDS) {
+            return null;
+        }
+
+        $raw = file_get_contents($cacheFile);
+        if (false === $raw) {
+            return null;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($decoded as $package) {
+            if (!is_array($package)
+                || !isset($package['package_type'], $package['package_id'], $package['version'], $package['package_name'], $package['download_url'])
+                || !is_string($package['package_type'])
+                || !is_string($package['package_id'])
+                || !is_string($package['version'])
+                || !is_string($package['package_name'])
+                || !is_string($package['download_url'])
+            ) {
+                continue;
+            }
+            $composer = [];
+            if (isset($package['composer']) && is_array($package['composer'])) {
+                foreach ($package['composer'] as $key => $value) {
+                    $composer[(string) $key] = $value;
+                }
+            }
+            $archiveSize = 0;
+            if (isset($package['archive_size']) && is_numeric($package['archive_size'])) {
+                $archiveSize = (int) $package['archive_size'];
+            }
+            $normalized[] = [
+                'package_type' => $package['package_type'],
+                'package_id' => $package['package_id'],
+                'version' => $package['version'],
+                'channel' => isset($package['channel']) && is_string($package['channel']) ? $package['channel'] : 'unknown',
+                'package_name' => $package['package_name'],
+                'archive_size' => $archiveSize,
+                'archive_sha256' => isset($package['archive_sha256']) && is_string($package['archive_sha256']) ? $package['archive_sha256'] : '',
+                'download_url' => $package['download_url'],
+                'composer' => $composer,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $packages
+     */
+    private function writeCache(array $packages): void
+    {
+        $cacheFile = $this->getCacheFile();
+        if (null === $cacheFile) {
+            return;
+        }
+
+        $cacheDir = dirname($cacheFile);
+        if (!createDirectoryTree($cacheDir, 0o755)) {
+            return;
+        }
+
+        file_put_contents($cacheFile, json_encode($packages, JSON_THROW_ON_ERROR));
+        @chmod($cacheFile, 0o644);
     }
 }

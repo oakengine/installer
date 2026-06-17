@@ -6,6 +6,7 @@ namespace Tests;
 
 use Oak\Engine\Installer\InstallUuidManager;
 use Oak\Engine\Installer\AppSecretManager;
+use Oak\Engine\Installer\ProjectPackageApiClient;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use ZipArchive;
@@ -305,25 +306,170 @@ final class IndexFunctionsTest extends TestCase
         $this->assertSame('<code>2.3.4</code>', formatVersionBadge('  2.3.4  '));
     }
 
-    public function testRenderStatusOverview(): void
+    public function testRenderHomeSections(): void
     {
-        $html = renderStatusOverview([
-            ['icon' => 'installer', 'label' => 'Installer Version', 'value' => '<code>1.0.0</code>'],
-            ['icon' => 'unknown-icon', 'label' => 'Custom', 'value' => '<em>none</em>'],
+        $html = renderHomeSections('System', [
+            ['icon' => 'endpoint', 'label' => 'Server Endpoint', 'value' => '<code>http://x</code>'],
+            ['icon' => 'folder', 'label' => 'Target directory', 'value' => '<code>/app</code>'],
+            ['icon' => 'code', 'label' => 'PHP version', 'value' => '<code>8.4.0</code>'],
+            [
+                'icon' => 'puzzle',
+                'label' => 'PHP modules',
+                'value' => '<span class="info-list-meta">42 modules</span>',
+                'action_html' => '<button type="button" class="info-list-action" data-modal-open="modal-php-modules" title="PHP modules" aria-label="PHP modules">'.lucideIcon('info', 16).'</button>',
+            ],
+            ['icon' => 'upload-cloud', 'label' => 'Upload limit', 'value' => '<code>128M</code>'],
+            ['icon' => 'clock', 'label' => 'Max execution time', 'value' => '<code>300</code>'],
+            ['icon' => 'memory-stick', 'label' => 'Memory limit', 'value' => '<code>512M</code>'],
+            ['icon' => 'hard-drive', 'label' => 'Cache size', 'value' => '<code>/var</code>'],
+            ['icon' => 'folder-tree', 'label' => 'Installed Data', 'value' => '<ul></ul>'],
+            ['icon' => 'unknown-icon', 'label' => 'No icon here', 'value' => '<code>x</code>'],
+        ], [
+            [
+                'title' => 'Configuration',
+                'icon' => 'settings',
+                'href' => '?view=environment',
+                'items' => [
+                    ['icon' => 'settings', 'label' => 'Mode', 'value' => '<code>dev</code>', 'action' => '?view=environment', 'action_title' => 'Configure'],
+                ],
+            ],
+            [
+                'title' => 'Installations',
+                'icon' => 'download',
+                'href' => '?view=updates',
+                'items' => [
+                    ['icon' => 'runner', 'label' => 'Runner Version', 'value' => '<code>1.0.0</code>', 'action' => '?view=updates', 'action_title' => 'Configure'],
+                ],
+            ],
         ]);
 
-        $this->assertStringStartsWith('<section class="status-overview">', $html);
-        $this->assertStringContainsString('class="status-item"', $html);
-        $this->assertStringContainsString('<span class="status-label">Installer Version</span>', $html);
-        $this->assertStringContainsString('<div class="status-value"><code>1.0.0</code></div>', $html);
-        $this->assertStringContainsString('<svg viewBox="0 0 24 24"', $html);
-        $this->assertStringContainsString('<span class="status-icon" aria-hidden="true"></span>', $html);
+        $this->assertStringContainsString('class="home-stack"', $html);
+        $this->assertStringContainsString('home-card-header--static', $html);
+        $this->assertStringContainsString('Server Endpoint', $html);
+        $this->assertStringContainsString('Target directory', $html);
+        $this->assertStringContainsString('PHP version', $html);
+        $this->assertStringContainsString('PHP modules', $html);
+        $this->assertStringContainsString('Upload limit', $html);
+        $this->assertStringContainsString('Max execution time', $html);
+        $this->assertStringContainsString('Memory limit', $html);
+        $this->assertStringContainsString('Cache size', $html);
+        $this->assertStringContainsString('Installed Data', $html);
+        $this->assertStringContainsString('No icon here', $html);
+        $this->assertStringContainsString('class="home-card"', $html);
+        $this->assertStringContainsString('class="home-card-header" href="?view=environment"', $html);
+        $this->assertStringContainsString('Configuration', $html);
+        $this->assertStringContainsString('class="home-card-header" href="?view=updates"', $html);
+        $this->assertStringContainsString('Installations', $html);
+        $this->assertStringContainsString('class="home-card-icon"', $html);
+        $this->assertStringContainsString('class="home-card-cta"', $html);
+        $this->assertStringContainsString('class="info-list-action" href="?view=environment" title="Configure" aria-label="Configure"', $html);
+        $this->assertStringContainsString('class="info-list-action" href="?view=updates" title="Configure" aria-label="Configure"', $html);
+        $this->assertStringContainsString('data-modal-open="modal-php-modules"', $html);
+        $this->assertStringContainsString('<circle cx="12" cy="12" r="10"/>', $html);
+        $this->assertStringNotContainsString('class="home-info"', $html);
+        $this->assertStringNotContainsString('class="home-grid"', $html);
         $this->assertStringNotContainsString('<select', $html);
     }
 
     public function testFormatVersionBadgeEscapesValue(): void
     {
         $this->assertSame('<code>1.0.0</code> <span class="status-badge">a&lt;b</span>', formatVersionBadge('1.0.0 (a<b)'));
+    }
+
+    public function testProjectPackageApiClientCachesListAndExposesRefresh(): void
+    {
+        $cacheDir = $this->createTempDirectory().'/cache';
+
+        $client = new ProjectPackageApiClient('https://invalid.invalid/', 'runner', '', '', $cacheDir);
+
+        $this->assertNull($client->getCacheAge());
+
+        $cacheFile = (function () use ($client) {
+            $reflection = new \ReflectionClass($client);
+            $method = $reflection->getMethod('getCacheFile');
+            $method->setAccessible(true);
+
+            return $method->invoke($client);
+        })();
+        $this->assertNotNull($cacheFile);
+
+        $payload = [[
+            'package_type' => 'runner',
+            'package_id' => 'demo',
+            'version' => '1.0.0',
+            'channel' => 'stable',
+            'package_name' => 'Demo/Runner',
+            'archive_size' => 1024,
+            'archive_sha256' => 'abc',
+            'download_url' => 'https://example.test/demo.tar.gz',
+            'composer' => ['oak-engine-runner' => ['version' => '1.0.0']],
+        ]];
+        mkdir(dirname((string) $cacheFile), 0o755, true);
+        file_put_contents((string) $cacheFile, json_encode($payload, JSON_THROW_ON_ERROR));
+        touch((string) $cacheFile, time());
+
+        $cached = $client->listPackages();
+        $this->assertSame('1.0.0', $cached[0]['version']);
+        $this->assertSame(300, $client->getCacheTtl());
+        $this->assertNotNull($client->getCacheAge());
+        $this->assertLessThan(60, $client->getCacheAge());
+
+        touch((string) $cacheFile, time() - 600);
+        clearstatcache(true, (string) $cacheFile);
+        $this->expectException(\RuntimeException::class);
+        $client->listPackages();
+    }
+
+    public function testProjectPackageApiClientRefreshBypassesCache(): void
+    {
+        $cacheDir = $this->createTempDirectory().'/cache';
+        $client = new ProjectPackageApiClient('https://invalid.invalid/', 'runner', '', '', $cacheDir);
+
+        $cacheFile = (function () use ($client) {
+            $reflection = new \ReflectionClass($client);
+            $method = $reflection->getMethod('getCacheFile');
+            $method->setAccessible(true);
+
+            return $method->invoke($client);
+        })();
+        $this->assertNotNull($cacheFile);
+        mkdir(dirname((string) $cacheFile), 0o755, true);
+
+        $payload = [['package_type' => 'runner', 'package_id' => 'demo', 'version' => '1.0.0', 'channel' => 'stable', 'package_name' => 'Demo/Runner', 'archive_size' => 1024, 'archive_sha256' => 'abc', 'download_url' => 'https://x/y', 'composer' => []]];
+        file_put_contents((string) $cacheFile, json_encode($payload, JSON_THROW_ON_ERROR));
+        touch((string) $cacheFile, time());
+
+        $this->expectException(\RuntimeException::class);
+        $client->refreshPackages();
+        $this->assertFileDoesNotExist((string) $cacheFile);
+    }
+
+    public function testProjectPackageApiClientInvalidateCacheRemovesFile(): void
+    {
+        $cacheDir = $this->createTempDirectory().'/cache';
+        $client = new ProjectPackageApiClient('https://invalid.invalid/', 'runner', '', '', $cacheDir);
+
+        $cacheFile = (function () use ($client) {
+            $reflection = new \ReflectionClass($client);
+            $method = $reflection->getMethod('getCacheFile');
+            $method->setAccessible(true);
+
+            return $method->invoke($client);
+        })();
+        $this->assertNotNull($cacheFile);
+        mkdir(dirname((string) $cacheFile), 0o755, true);
+        file_put_contents((string) $cacheFile, '[]');
+        $this->assertFileExists((string) $cacheFile);
+
+        $client->invalidateCache();
+        $this->assertFileDoesNotExist((string) $cacheFile);
+        $this->assertNull($client->getCacheAge());
+    }
+
+    public function testProjectPackageApiClientWithoutCacheDirectoryReturnsNullAge(): void
+    {
+        $client = new ProjectPackageApiClient('https://invalid.invalid/', 'runner', '', '', null);
+        $this->assertNull($client->getCacheAge());
     }
 
     public function testRenderDropdownPreselectsValueAndReplacesSelect(): void
@@ -640,6 +786,53 @@ final class IndexFunctionsTest extends TestCase
         $this->assertSame(2, $result['deleted_count']);
         $this->assertEmpty($result['errors']);
         $this->assertDirectoryDoesNotExist($cacheDir);
+    }
+
+    public function testClearCacheDirectoryReturnsEmptyResultForMissingDirectory(): void
+    {
+        $result = clearCacheDirectory($this->createTempDirectory().'/missing');
+
+        $this->assertSame(0, $result['deleted_count']);
+        $this->assertSame([], $result['errors']);
+    }
+
+    public function testGetDirectorySizeSumsFiles(): void
+    {
+        $dir = $this->createTempDirectory();
+        file_put_contents($dir.'/a.txt', 'hello');
+        file_put_contents($dir.'/b.txt', 'world!!');
+        mkdir($dir.'/sub');
+        file_put_contents($dir.'/sub/c.txt', '12345');
+
+        $this->assertSame(17, getDirectorySize($dir));
+    }
+
+    public function testGetDirectorySizeReturnsZeroForMissingDirectory(): void
+    {
+        $this->assertSame(0, getDirectorySize($this->createTempDirectory().'/nope'));
+    }
+
+    public function testGetDirectorySizeReturnsAccumulatedSizeWhenIteratorFails(): void
+    {
+        $dir = $this->createTempDirectory();
+        file_put_contents($dir.'/a.txt', 'hello');
+        chmod($dir, 0o000);
+        clearstatcache(true, $dir);
+        try {
+            $this->assertSame(0, getDirectorySize($dir));
+        } finally {
+            chmod($dir, 0o755);
+        }
+    }
+
+    public function testFormatFileSizeFormatsUnits(): void
+    {
+        $this->assertSame('0 B', formatFileSize(0));
+        $this->assertSame('500B', formatFileSize(500));
+        $this->assertSame('1KB', formatFileSize(1024));
+        $this->assertSame('1.5KB', formatFileSize(1536));
+        $this->assertSame('12MB', formatFileSize(12 * 1024 * 1024));
+        $this->assertSame('1.2GB', formatFileSize((int) (1.2 * 1024 * 1024 * 1024)));
     }
 
     public function testCleanTargetDirectoryPreservesCriticalPaths(): void
@@ -1616,7 +1809,7 @@ ENV;
         $envPath = $targetDir.'/.env.local';
         file_put_contents($envPath, "APP_ENV=prod\n");
 
-        $html = renderPage('Installer', '<section class="status-overview">HOME</section>', null, $envPath, false, 'home');
+        $html = renderPage('Installer', '<ul class="info-list">HOME</ul>', null, $envPath, false, 'home');
 
         $this->assertStringContainsString('HOME', $html);
         $this->assertStringContainsString('class="dashboard-nav"', $html);
@@ -1674,10 +1867,10 @@ ENV;
 
         $this->assertStringContainsString('<span class="dropdown-label">-</span>', $html);
         $this->assertStringContainsString('class="dropdown dropdown-db is-disabled"', $html);
-        $this->assertStringContainsString('name="save_env" value="1"', $html);
-        $this->assertStringContainsString('name="remove_database" value="1"', $html);
-        $this->assertStringContainsString('input-group-append--danger', $html);
-        $this->assertStringContainsString('disabled', $html);
+        $this->assertStringContainsString('name="save_env" value="1" class="input-group-append"', $html);
+        $this->assertStringContainsString('name="remove_database" value="1" class="input-group-append input-group-append--danger"', $html);
+        $this->assertStringContainsString('name="save_env" value="1" class="input-group-append" title="Save" aria-label="Save"disabled', $html);
+        $this->assertStringContainsString('name="remove_database" value="1" class="input-group-append input-group-append--danger" title="Remove database" aria-label="Remove database"disabled', $html);
     }
 
     public function testRenderPageWithoutEnvPathHasNoDashboardNav(): void
