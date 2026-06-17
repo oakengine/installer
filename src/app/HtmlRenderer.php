@@ -1301,6 +1301,8 @@ HTML;
     .env-form--inline .btn { margin-left: auto; }
     .input-group { display: flex; align-items: stretch; }
     .input-group > .env-input { flex: 1 1 auto; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    .input-group > .dropdown { flex: 1 1 auto; min-width: 0; }
+    .input-group > .dropdown .dropdown-toggle { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
     .input-group > .input-group-append {
         display: inline-flex; align-items: center; justify-content: center;
         flex: 0 0 auto;
