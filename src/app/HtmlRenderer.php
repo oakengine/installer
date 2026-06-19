@@ -1537,7 +1537,7 @@ HTML;
     .env-row--stack { flex-direction: column; align-items: stretch; gap: 6px; width: min(100%, 420px); }
     .env-row--inline { flex-direction: row; align-items: center; min-width: 0; }
     .env-row--grow { flex: 1 1 auto; }
-    .env-row--wide { width: min(100%, 720px); }
+    .env-row--wide { width: 100%; }
     .env-row label { font-weight: 600; color: var(--text-muted); font-size: 0.88rem; }
     .env-help { color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; line-height: 1.45; }
     .env-row--inline label { white-space: nowrap; }
