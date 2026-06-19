@@ -38,6 +38,8 @@ return [
     'skipped' => 'bersprungen: :folders Ordner, :files Dateien',
     'preserved_list_title' => 'Geschtzte Dateien/Ordner (Whitelist):',
     'installed_files' => 'Installierte Dateien',
+    'stale_files_removed' => '<strong>:files veraltete Dateien</strong> und <strong>:dirs leere Ordner</strong> entfernt.',
+    'removed_files_title' => 'Entfernte veraltete Dateien:',
     'env_values_created' => '.env.local-Werte erstellt: :count',
     'env_values_skipped_existing' => '.env.local-Werte bersprungen, weil bereits vorhanden: :count',
     'processed_composer_files' => 'Verarbeitete composer.json-Dateien (core A-Z, plugin A-Z):',

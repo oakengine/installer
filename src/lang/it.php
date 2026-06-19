@@ -38,6 +38,8 @@ return [
     'skipped' => 'Saltati: :folders cartelle, :files file',
     'preserved_list_title' => 'File/cartelle conservati (whitelist):',
     'installed_files' => 'File installati',
+    'stale_files_removed' => '<strong>:files file obsoleti</strong> e <strong>:dirs cartelle vuote</strong> rimossi.',
+    'removed_files_title' => 'File obsoleti rimossi:',
     'env_values_created' => '.env.local values created: :count',
     'env_values_skipped_existing' => '.env.local values skipped because already present: :count',
     'processed_composer_files' => 'Processed composer.json files (core A-Z, plugin A-Z):',

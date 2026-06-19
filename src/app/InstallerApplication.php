@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Oak\Engine\Installer\AppSecretManager;
+use Oak\Engine\Installer\InstallManifestManager;
 use Oak\Engine\Installer\InstallUuidManager;
 use Oak\Engine\Installer\ProjectPackageApiClient;
 use Oak\Engine\Installer\ProjectPackageArchiveExtractor;
@@ -210,6 +211,7 @@ final class InstallerApplication
             $pluginClient = new ProjectPackageApiClient($projectApiUrl, 'plugin', $installUuid, $projectApiToken, $packageCacheDir);
             $dataClient = new ProjectPackageApiClient($projectApiUrl, 'data', $installUuid, $projectApiToken, $packageCacheDir);
             $archiveExtractor = new ProjectPackageArchiveExtractor();
+            $manifestManager = new InstallManifestManager();
 
             if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['save_env'])) {
                 $envPath = rtrim($targetDirStr, '/').'/.env.local';
@@ -507,7 +509,11 @@ final class InstallerApplication
                     : resolvePackageInstallDirFromMetadata(is_array($package['composer'] ?? null) ? $package['composer'] : [], $packageType);
                 $packageTargetDir = resolvePackageInstallTargetDir((string) $targetDirStr, $packageType, $packageDir);
 
-                $cleanResult = cleanTargetDirectory($packageTargetDir);
+                $oldManifest = $manifestManager->loadManifest($packageTargetDir);
+                $cleanResult = ['deleted_count' => 0, 'preserved' => []];
+                if (null === $oldManifest) {
+                    $cleanResult = cleanTargetDirectory($packageTargetDir);
+                }
 
                 try {
                     $extractZipResult = $archiveExtractor->extractTarGzFile(
@@ -533,13 +539,35 @@ final class InstallerApplication
                     $appSecretManager->ensureEnvLocalAppSecret($envPath);
                 }
 
+                /** @var list<string> $extractedFiles */
+                $extractedFiles = $extractZipResult['extracted'];
+                $newManifest = $manifestManager->buildManifest(
+                    $packageTargetDir,
+                    $packageType,
+                    $package['package_id'],
+                    $package['version'],
+                    $extractedFiles,
+                );
+                $manifestManager->saveManifest($packageTargetDir, $newManifest);
+
+                $staleFiles = $manifestManager->diffStaleFiles($oldManifest, $newManifest);
+                $staleResult = ['deleted_files' => [], 'deleted_dirs' => [], 'errors' => []];
+                if ([] !== $staleFiles) {
+                    $staleResult = $manifestManager->deleteStaleFilesAndEmptyDirs($packageTargetDir, $staleFiles);
+                }
+
                 $extractedCount = count($extractZipResult['extracted']);
                 $skippedFilesCount = count($extractZipResult['skipped_files']);
                 $skippedFoldersCount = count($extractZipResult['skipped_folders']);
                 $preservedCount = count($cleanResult['preserved']);
+                $staleDeletedCount = count($staleResult['deleted_files']);
+                $staleDirsCount = count($staleResult['deleted_dirs']);
 
                 $content = '<div class="success">'.resolveLangKey('installation_successful', $langForGlobal).'<br>';
                 $content .= resolveLangKey('files_extracted', $langForGlobal, ['count' => $extractedCount, 'dir' => htmlspecialchars($packageTargetDir)]);
+                if ($staleDeletedCount > 0 || $staleDirsCount > 0) {
+                    $content .= '<br>'.resolveLangKey('stale_files_removed', $langForGlobal, ['files' => $staleDeletedCount, 'dirs' => $staleDirsCount]);
+                }
                 if ($preservedCount > 0) {
                     $content .= '<br>'.resolveLangKey('preserved_files', $langForGlobal, ['count' => $preservedCount]);
                 }
@@ -563,6 +591,17 @@ final class InstallerApplication
 
                 $content .= renderComposerMetadataSourceListHtml($composerMetadataSources, $langForGlobal);
 
+                if ($staleDeletedCount > 0) {
+                    $content .= '<div class="warning"><strong>'.resolveLangKey('removed_files_title', $langForGlobal).'</strong><ul class="file-list">';
+                    foreach (array_slice($staleResult['deleted_files'], 0, 20) as $item) {
+                        $content .= '<li>'.htmlspecialchars((string) $item).'</li>';
+                    }
+                    if ($staleDeletedCount > 20) {
+                        $content .= '<li><em>'.resolveLangKey('and_more', $langForGlobal, ['count' => ($staleDeletedCount - 20)]).'</em></li>';
+                    }
+                    $content .= '</ul></div>';
+                }
+
                 if ($preservedCount > 0) {
                     $content .= '<div class="warning"><strong>'.resolveLangKey('preserved_list_title', $langForGlobal).'</strong><ul class="file-list">';
                     foreach (array_slice($cleanResult['preserved'], 0, 20) as $item) {
@@ -575,8 +614,6 @@ final class InstallerApplication
                 }
 
                 $content .= '<a href="'.htmlspecialchars((string) $dashboardBackHref).'" class="back-link">'.htmlspecialchars((string) resolveLangKey('back', $langForGlobal)).'</a><h3>'.htmlspecialchars((string) resolveLangKey('installed_files', $langForGlobal)).'</h3><ul class="file-list">';
-                /** @var array<string> $extractedFiles */
-                $extractedFiles = $extractZipResult['extracted'];
                 $slice = array_slice($extractedFiles, 0, 50);
                 foreach ($slice as $file) {
                     $content .= '<li>'.htmlspecialchars($file).'</li>';

@@ -38,6 +38,8 @@ return [
     'skipped' => 'Ignor : :folders dossiers, :files fichiers',
     'preserved_list_title' => 'Fichiers/dossiers prservs (liste blanche) :',
     'installed_files' => 'Fichiers installs',
+    'stale_files_removed' => '<strong>:files fichiers obsoltes</strong> et <strong>:dirs dossiers vides</strong> supprims.',
+    'removed_files_title' => 'Fichiers obsoltes supprims :',
     'env_values_created' => '.env.local values created: :count',
     'env_values_skipped_existing' => '.env.local values skipped because already present: :count',
     'processed_composer_files' => 'Processed composer.json files (core A-Z, plugin A-Z):',

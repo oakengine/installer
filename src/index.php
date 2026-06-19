@@ -8,6 +8,7 @@ namespace Oak\Engine\Installer {
     require_once __DIR__.'/app/AppSecretManager.php';
     require_once __DIR__.'/app/ProjectPackageApiClient.php';
     require_once __DIR__.'/app/ProjectPackageArchiveExtractor.php';
+    require_once __DIR__.'/app/InstallManifestManager.php';
 }
 
 namespace {

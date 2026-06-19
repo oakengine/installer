@@ -38,6 +38,8 @@ return [
     'skipped' => 'Pominito: :folders folderw, :files plikw',
     'preserved_list_title' => 'Zachowane pliki/foldery (biaa lista):',
     'installed_files' => 'Zainstalowane pliki',
+    'stale_files_removed' => 'Usunito <strong>:files nieaktualnych plikw</strong> i <strong>:dirs pustych folderw</strong>.',
+    'removed_files_title' => 'Usunite nieaktualne pliki:',
     'env_values_created' => '.env.local values created: :count',
     'env_values_skipped_existing' => '.env.local values skipped because already present: :count',
     'processed_composer_files' => 'Processed composer.json files (core A-Z, plugin A-Z):',

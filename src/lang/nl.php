@@ -38,6 +38,8 @@ return [
     'skipped' => 'Overgeslagen: :folders mappen, :files bestanden',
     'preserved_list_title' => 'Bewaarde bestanden/mappen (whitelist):',
     'installed_files' => 'Genstalleerde bestanden',
+    'stale_files_removed' => '<strong>:files verouderde bestanden</strong> en <strong>:dirs lege mappen</strong> verwijderd.',
+    'removed_files_title' => 'Verwijderde verouderde bestanden:',
     'env_values_created' => '.env.local values created: :count',
     'env_values_skipped_existing' => '.env.local values skipped because already present: :count',
     'processed_composer_files' => 'Processed composer.json files (core A-Z, plugin A-Z):',

@@ -38,6 +38,8 @@ return [
     'skipped' => 'Ignorado: :folders pastas, :files arquivos',
     'preserved_list_title' => 'Arquivos/pastas preservados (lista branca):',
     'installed_files' => 'Arquivos instalados',
+    'stale_files_removed' => '<strong>:files arquivos obsoletos</strong> e <strong>:dirs pastas vazias</strong> removidos.',
+    'removed_files_title' => 'Arquivos obsoletos removidos:',
     'env_values_created' => '.env.local values created: :count',
     'env_values_skipped_existing' => '.env.local values skipped because already present: :count',
     'processed_composer_files' => 'Processed composer.json files (core A-Z, plugin A-Z):',

@@ -38,6 +38,8 @@ return [
     'skipped' => ':folders  :files',
     'preserved_list_title' => '/ ():',
     'installed_files' => '',
+    'stale_files_removed' => '<strong>:files </strong><strong>:dirs </strong>',
+    'removed_files_title' => ':',
     'env_values_created' => '.env.local values created: :count',
     'env_values_skipped_existing' => '.env.local values skipped because already present: :count',
     'processed_composer_files' => 'Processed composer.json files (core A-Z, plugin A-Z):',

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use Oak\Engine\Installer\InstallManifestManager;
 use Oak\Engine\Installer\InstallUuidManager;
 use Oak\Engine\Installer\AppSecretManager;
 use Oak\Engine\Installer\ProjectPackageApiClient;
@@ -2144,6 +2145,374 @@ ENV;
             '<input type="hidden" name="view" value="system">',
             renderDashboardStateInputs('system')
         );
+    }
+
+    public function testInstallManifestManagerLoadReturnsNullWithoutManifest(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+
+        $this->assertNull($manager->loadManifest($targetDir));
+        $this->assertFalse($manager->manifestExists($targetDir));
+    }
+
+    public function testInstallManifestManagerLoadReturnsNullForInvalidJson(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        file_put_contents($manager->manifestPath($targetDir), '{not valid json');
+
+        $this->assertNull($manager->loadManifest($targetDir));
+    }
+
+    public function testInstallManifestManagerLoadReturnsNullForMissingFilesKey(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        file_put_contents($manager->manifestPath($targetDir), json_encode(['package_type' => 'runner'], JSON_THROW_ON_ERROR));
+
+        $this->assertNull($manager->loadManifest($targetDir));
+    }
+
+    public function testInstallManifestManagerLoadNormalizesManifest(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        file_put_contents(
+            $manager->manifestPath($targetDir),
+            json_encode([
+                'package_type' => 'plugin',
+                'package_id' => 'demo',
+                'version' => '1.0.0',
+                'files' => ['app/file.php' => 'abc123', 'other.php' => 123],
+            ], JSON_THROW_ON_ERROR)
+        );
+
+        $manifest = $manager->loadManifest($targetDir);
+
+        $this->assertNotNull($manifest);
+        $this->assertSame('plugin', $manifest['package_type']);
+        $this->assertSame('demo', $manifest['package_id']);
+        $this->assertSame('1.0.0', $manifest['version']);
+        $this->assertSame(['app/file.php' => 'abc123', 'other.php' => '123'], $manifest['files']);
+        $this->assertTrue($manager->manifestExists($targetDir));
+    }
+
+    public function testInstallManifestManagerSaveAndBuildRoundTrip(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/app', 0o755, true);
+        file_put_contents($targetDir.'/app/file.php', 'content-a');
+        file_put_contents($targetDir.'/root.php', 'content-b');
+
+        $manifest = $manager->buildManifest($targetDir, 'runner', 'demo', '1.2.3', ['app/file.php', 'root.php']);
+
+        $this->assertSame('runner', $manifest['package_type']);
+        $this->assertSame('demo', $manifest['package_id']);
+        $this->assertSame('1.2.3', $manifest['version']);
+        $this->assertSame(sha1('content-a'), $manifest['files']['app/file.php']);
+        $this->assertSame(sha1('content-b'), $manifest['files']['root.php']);
+
+        $this->assertTrue($manager->saveManifest($targetDir, $manifest));
+        $this->assertTrue($manager->manifestExists($targetDir));
+
+        $loaded = $manager->loadManifest($targetDir);
+        $this->assertNotNull($loaded);
+        $this->assertSame($manifest['files'], $loaded['files']);
+    }
+
+    public function testInstallManifestManagerBuildSkipsMissingFilesAndManifestFile(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        file_put_contents($targetDir.'/present.php', 'x');
+
+        $manifest = $manager->buildManifest(
+            $targetDir,
+            'data',
+            'demo',
+            '2.0.0',
+            ['present.php', 'missing.php', InstallManifestManager::MANIFEST_FILENAME, '', 123]
+        );
+
+        $this->assertSame(['present.php' => sha1('x')], $manifest['files']);
+    }
+
+    public function testInstallManifestManagerSaveCreatesDirectory(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory().'/nested/deep';
+
+        $manifest = $manager->buildManifest($targetDir, 'plugin', 'demo', '1.0.0', []);
+        $this->assertTrue($manager->saveManifest($targetDir, $manifest));
+        $this->assertFileExists($manager->manifestPath($targetDir));
+    }
+
+    public function testInstallManifestManagerDiffReturnsEmptyForFirstInstall(): void
+    {
+        $manager = new InstallManifestManager();
+        $newManifest = ['package_type' => 'runner', 'package_id' => 'demo', 'version' => '1.0.0', 'files' => ['a.php' => 'x']];
+
+        $this->assertSame([], $manager->diffStaleFiles(null, $newManifest));
+    }
+
+    public function testInstallManifestManagerDiffReturnsStaleFilesSorted(): void
+    {
+        $manager = new InstallManifestManager();
+        $oldManifest = [
+            'package_type' => 'runner',
+            'package_id' => 'demo',
+            'version' => '1.0.0',
+            'files' => ['keep.php' => 'a', 'old.php' => 'b', 'gone.php' => 'c'],
+        ];
+        $newManifest = [
+            'package_type' => 'runner',
+            'package_id' => 'demo',
+            'version' => '1.1.0',
+            'files' => ['keep.php' => 'a', 'added.php' => 'd'],
+        ];
+
+        $this->assertSame(['gone.php', 'old.php'], $manager->diffStaleFiles($oldManifest, $newManifest));
+    }
+
+    public function testInstallManifestManagerDeleteStaleFilesAndEmptyDirs(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/old/sub', 0o755, true);
+        mkdir($targetDir.'/keep', 0o755, true);
+        file_put_contents($targetDir.'/old/stale.php', 'old');
+        file_put_contents($targetDir.'/old/sub/deep.php', 'old');
+        file_put_contents($targetDir.'/keep/file.php', 'keep');
+        file_put_contents($targetDir.'/root.php', 'keep');
+
+        $result = $manager->deleteStaleFilesAndEmptyDirs($targetDir, ['old/stale.php', 'old/sub/deep.php', 'nonexistent.php']);
+
+        $this->assertEqualsCanonicalizing(['old/stale.php', 'old/sub/deep.php'], $result['deleted_files']);
+        $this->assertSame([], $result['errors']);
+        $this->assertFileDoesNotExist($targetDir.'/old/stale.php');
+        $this->assertFileDoesNotExist($targetDir.'/old/sub/deep.php');
+        $this->assertDirectoryDoesNotExist($targetDir.'/old/sub');
+        $this->assertDirectoryDoesNotExist($targetDir.'/old');
+        $this->assertFileExists($targetDir.'/keep/file.php');
+        $this->assertFileExists($targetDir.'/root.php');
+        $this->assertNotEmpty($result['deleted_dirs']);
+    }
+
+    public function testInstallManifestManagerDeleteIgnoresPathsOutsideTarget(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        $outside = $this->createTempDirectory();
+        file_put_contents($outside.'/secret.php', 'secret');
+        file_put_contents($targetDir.'/inside.php', 'keep');
+
+        $result = $manager->deleteStaleFilesAndEmptyDirs($targetDir, ['../'.basename($outside).'/secret.php']);
+
+        $this->assertSame([], $result['deleted_files']);
+        $this->assertFileExists($outside.'/secret.php');
+        $this->assertFileExists($targetDir.'/inside.php');
+    }
+
+    public function testInstallManifestManagerDeleteReportsErrorsForUnlinkedFiles(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/locked', 0o755, true);
+        file_put_contents($targetDir.'/locked/file.php', 'locked');
+        chmod($targetDir.'/locked', 0o555);
+
+        $result = $manager->deleteStaleFilesAndEmptyDirs($targetDir, ['locked/file.php']);
+
+        chmod($targetDir.'/locked', 0o755);
+
+        $this->assertSame([], $result['deleted_files']);
+        $this->assertNotEmpty($result['errors']);
+        $this->assertFileExists($targetDir.'/locked/file.php');
+    }
+
+    public function testInstallManifestManagerDeleteHandlesMissingTargetDirectory(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory().'/does-not-exist';
+
+        $result = $manager->deleteStaleFilesAndEmptyDirs($targetDir, ['a.php']);
+
+        $this->assertSame(['deleted_files' => [], 'deleted_dirs' => [], 'errors' => []], $result);
+    }
+
+    public function testInstallManifestManagerManifestPath(): void
+    {
+        $manager = new InstallManifestManager();
+
+        $this->assertSame('/var/project/'.InstallManifestManager::MANIFEST_FILENAME, $manager->manifestPath('/var/project'));
+        $this->assertSame('/var/project/'.InstallManifestManager::MANIFEST_FILENAME, $manager->manifestPath('/var/project/'));
+    }
+
+    public function testInstallManifestManagerEndToEndUpdateRemovesObsoleteFiles(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+
+        mkdir($targetDir.'/v1', 0o755, true);
+        file_put_contents($targetDir.'/v1/keep.php', 'keep');
+        file_put_contents($targetDir.'/v1/old.php', 'old');
+        file_put_contents($targetDir.'/root.php', 'root');
+
+        $oldManifest = $manager->buildManifest($targetDir, 'plugin', 'demo', '1.0.0', ['v1/keep.php', 'v1/old.php', 'root.php']);
+        $this->assertTrue($manager->saveManifest($targetDir, $oldManifest));
+
+        $loadedOld = $manager->loadManifest($targetDir);
+        $this->assertNotNull($loadedOld);
+
+        $newManifest = $manager->buildManifest($targetDir, 'plugin', 'demo', '1.1.0', ['v1/keep.php', 'root.php']);
+        $this->assertTrue($manager->saveManifest($targetDir, $newManifest));
+
+        $stale = $manager->diffStaleFiles($loadedOld, $newManifest);
+        $this->assertContains('v1/old.php', $stale);
+
+        $result = $manager->deleteStaleFilesAndEmptyDirs($targetDir, $stale);
+
+        $this->assertContains('v1/old.php', $result['deleted_files']);
+        $this->assertFileDoesNotExist($targetDir.'/v1/old.php');
+        $this->assertFileExists($targetDir.'/v1/keep.php');
+        $this->assertFileExists($targetDir.'/root.php');
+    }
+
+    public function testInstallManifestManagerLoadReturnsNullForUnreadableFile(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        $path = $manager->manifestPath($targetDir);
+        file_put_contents($path, '{}');
+        chmod($path, 0o000);
+
+        $this->assertNull($manager->loadManifest($targetDir));
+
+        chmod($path, 0o644);
+    }
+
+    public function testInstallManifestManagerLoadSkipsNonStringKeys(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        file_put_contents(
+            $manager->manifestPath($targetDir),
+            json_encode([
+                'package_type' => 'runner',
+                'package_id' => 'demo',
+                'version' => '1.0.0',
+                'files' => [123 => 'numeric-key-hash', 'valid.php' => 'abc'],
+            ], JSON_THROW_ON_ERROR)
+        );
+
+        $manifest = $manager->loadManifest($targetDir);
+        $this->assertNotNull($manifest);
+        $this->assertSame(['valid.php' => 'abc'], $manifest['files']);
+    }
+
+    public function testInstallManifestManagerLoadNormalizesNonScalarMetadata(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        file_put_contents(
+            $manager->manifestPath($targetDir),
+            json_encode([
+                'package_type' => ['nested'],
+                'package_id' => null,
+                'version' => '1.0.0',
+                'files' => [],
+            ], JSON_THROW_ON_ERROR)
+        );
+
+        $manifest = $manager->loadManifest($targetDir);
+        $this->assertNotNull($manifest);
+        $this->assertSame('', $manifest['package_type']);
+        $this->assertSame('', $manifest['package_id']);
+    }
+
+    public function testInstallManifestManagerSaveReturnsFalseWhenDirectoryCannotBeCreated(): void
+    {
+        $manager = new InstallManifestManager();
+        $blocker = $this->createTempDirectory();
+        file_put_contents($blocker.'/file', 'blocker');
+
+        $manifest = $manager->buildManifest($blocker.'/file', 'runner', 'demo', '1.0.0', []);
+
+        $this->assertFalse($manager->saveManifest($blocker.'/file', $manifest));
+    }
+
+    public function testInstallManifestManagerSaveReturnsFalseForUnencodableManifest(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+
+        $manifest = [
+            'package_type' => 'runner',
+            'package_id' => 'demo',
+            'version' => '1.0.0',
+            'files' => ['bad.php' => "invalid\xFFutf8"],
+        ];
+
+        $this->assertFalse($manager->saveManifest($targetDir, $manifest));
+    }
+
+    public function testInstallManifestManagerBuildSkipsUnreadableFiles(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        file_put_contents($targetDir.'/readable.php', 'a');
+        file_put_contents($targetDir.'/unreadable.php', 'b');
+        chmod($targetDir.'/unreadable.php', 0o000);
+
+        $manifest = $manager->buildManifest($targetDir, 'runner', 'demo', '1.0.0', ['readable.php', 'unreadable.php']);
+
+        chmod($targetDir.'/unreadable.php', 0o644);
+        $this->assertSame(['readable.php' => sha1('a')], $manifest['files']);
+    }
+
+    public function testInstallManifestManagerDiffIgnoresNonStringKeys(): void
+    {
+        $manager = new InstallManifestManager();
+        $oldManifest = [
+            'package_type' => 'runner',
+            'package_id' => 'demo',
+            'version' => '1.0.0',
+            'files' => [0 => 'numeric', 'gone.php' => 'b'],
+        ];
+        $newManifest = [
+            'package_type' => 'runner',
+            'package_id' => 'demo',
+            'version' => '1.1.0',
+            'files' => ['keep.php' => 'c'],
+        ];
+
+        $this->assertSame(['gone.php'], $manager->diffStaleFiles($oldManifest, $newManifest));
+    }
+
+    public function testInstallManifestManagerDeleteSkipsNonStringAndEmptyEntries(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        file_put_contents($targetDir.'/keep.php', 'keep');
+
+        $result = $manager->deleteStaleFilesAndEmptyDirs($targetDir, [0, '', null, 'keep.php']);
+
+        $this->assertEqualsCanonicalizing(['keep.php'], $result['deleted_files']);
+    }
+
+    public function testInstallManifestManagerDeleteHandlesUnreadableDirectory(): void
+    {
+        $manager = new InstallManifestManager();
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/unreadable', 0o755, true);
+        chmod($targetDir.'/unreadable', 0o000);
+
+        $result = $manager->deleteStaleFilesAndEmptyDirs($targetDir, []);
+
+        chmod($targetDir.'/unreadable', 0o755);
+        $this->assertSame(['deleted_files' => [], 'deleted_dirs' => [], 'errors' => []], $result);
     }
 
     private function createTempDirectory(): string
