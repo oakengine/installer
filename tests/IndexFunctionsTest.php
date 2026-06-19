@@ -371,6 +371,76 @@ final class IndexFunctionsTest extends TestCase
         $this->assertStringNotContainsString('<select', $html);
     }
 
+    public function testRenderHomeSectionsInfoCardFirstPlacesInfoBeforeSections(): void
+    {
+        $html = renderHomeSections('System', [
+            ['icon' => 'endpoint', 'label' => 'Server Endpoint', 'value' => '<code>http://x</code>'],
+        ], [
+            [
+                'title' => 'Configuration',
+                'icon' => 'settings',
+                'href' => '?view=environment',
+                'items' => [
+                    ['icon' => 'settings', 'label' => 'Mode', 'value' => '<code>dev</code>'],
+                ],
+            ],
+        ]);
+
+        $this->assertLessThan(
+            strpos($html, 'Configuration'),
+            strpos($html, 'Server Endpoint'),
+            'System info card should render before the section cards by default'
+        );
+    }
+
+    public function testRenderHomeSectionsInfoCardLastPlacesInfoAfterSections(): void
+    {
+        $html = renderHomeSections('System', [
+            ['icon' => 'endpoint', 'label' => 'Server Endpoint', 'value' => '<code>http://x</code>'],
+        ], [
+            [
+                'title' => 'Configuration',
+                'icon' => 'settings',
+                'href' => '?view=environment',
+                'items' => [
+                    ['icon' => 'settings', 'label' => 'Mode', 'value' => '<code>dev</code>'],
+                ],
+            ],
+        ], '', false);
+
+        $this->assertLessThan(
+            strpos($html, 'Server Endpoint'),
+            strpos($html, 'Configuration'),
+            'System info card should render after the section cards when requested'
+        );
+    }
+
+    public function testRenderHomeSectionsOmitsInfoCardWhenInfoItemsEmpty(): void
+    {
+        $html = renderHomeSections('System', [], [
+            [
+                'title' => 'Configuration',
+                'icon' => 'settings',
+                'href' => '?view=environment',
+                'items' => [
+                    ['icon' => 'settings', 'label' => 'Mode', 'value' => '<code>dev</code>'],
+                ],
+            ],
+        ]);
+
+        $this->assertStringContainsString('class="home-stack"', $html);
+        $this->assertStringContainsString('Configuration', $html);
+        $this->assertStringNotContainsString('System', $html);
+        $this->assertStringNotContainsString('home-card-header--static', $html);
+    }
+
+    public function testRenderHomeSectionsReturnsEmptyStackWhenInfoItemsAndSectionsEmpty(): void
+    {
+        $html = renderHomeSections('System', [], []);
+
+        $this->assertSame('<div class="home-stack"></div>', $html);
+    }
+
     public function testFormatVersionBadgeEscapesValue(): void
     {
         $this->assertSame('<code>1.0.0</code> <span class="status-badge">a&lt;b</span>', formatVersionBadge('1.0.0 (a<b)'));
@@ -1815,6 +1885,7 @@ ENV;
         $this->assertStringContainsString('class="dashboard-nav"', $html);
         $this->assertStringContainsString('dashboard-btn active', $html);
         $this->assertStringContainsString('view=installer', $html);
+        $this->assertStringContainsString('view=system', $html);
         $this->assertStringNotContainsString('id="btn-home"', $html);
         $this->assertStringNotContainsString('showDashboardSection', $html);
     }
@@ -1871,6 +1942,24 @@ ENV;
         $this->assertStringContainsString('name="remove_database" value="1" class="input-group-append input-group-append--danger"', $html);
         $this->assertStringContainsString('name="save_env" value="1" class="input-group-append" title="Save" aria-label="Save"disabled', $html);
         $this->assertStringContainsString('name="remove_database" value="1" class="input-group-append input-group-append--danger" title="Remove database" aria-label="Remove database"disabled', $html);
+    }
+
+    public function testRenderPageHighlightsSystemViewAndKeepsContent(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $GLOBALS['availableLangs'] = ['en', 'de'];
+        $_SESSION['lang'] = 'en';
+
+        $targetDir = $this->createTempDirectory();
+        $envPath = $targetDir.'/.env.local';
+        file_put_contents($envPath, "APP_ENV=prod\n");
+
+        $html = renderPage('Installer', '<ul class="info-list">SYSTEM</ul>', null, $envPath, false, 'system');
+
+        $this->assertStringContainsString('SYSTEM', $html);
+        $this->assertStringContainsString('view=system', $html);
+        $this->assertStringContainsString('dashboard-btn active', $html);
+        $this->assertStringNotContainsString('class="env-form', $html);
     }
 
     public function testRenderPageWithoutEnvPathHasNoDashboardNav(): void
@@ -1989,11 +2078,13 @@ ENV;
         $this->assertSame('home', resolveDashboardView(null));
         $this->assertSame('home', resolveDashboardView('bogus'));
         $this->assertSame('home', resolveDashboardView(['array']));
+        $this->assertSame('home', resolveDashboardView('home'));
         $this->assertSame('updates', resolveDashboardView('updates'));
         $this->assertSame('environment', resolveDashboardView('environment'));
         $this->assertSame('databases', resolveDashboardView('databases'));
         $this->assertSame('install-uuid', resolveDashboardView('install-uuid'));
         $this->assertSame('installer', resolveDashboardView('installer'));
+        $this->assertSame('system', resolveDashboardView('system'));
     }
 
     public function testResolveInstallerTabDefaultsToBranches(): void
@@ -2033,6 +2124,9 @@ ENV;
 
         $href = buildDashboardViewHref('installer');
         $this->assertMatchesRegularExpression('/^\?_t=\d+&view=installer&itab=branches$/', $href);
+
+        $href = buildDashboardViewHref('system');
+        $this->assertMatchesRegularExpression('/^\?_t=\d+&view=system$/', $href);
     }
 
     public function testRenderDashboardStateInputsOmitsHomeAndPreservesInstallerTab(): void
@@ -2045,6 +2139,10 @@ ENV;
         $this->assertSame(
             '<input type="hidden" name="view" value="installer"><input type="hidden" name="itab" value="tags">',
             renderDashboardStateInputs('installer', 'tags')
+        );
+        $this->assertSame(
+            '<input type="hidden" name="view" value="system">',
+            renderDashboardStateInputs('system')
         );
     }
 

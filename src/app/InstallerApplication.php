@@ -457,17 +457,22 @@ final class InstallerApplication
 
                 $content = '<div class="success">'.resolveLangKey('updater_updated', $langForGlobal, ['tag' => htmlspecialchars($tag)]).'<br>';
                 $content .= resolveLangKey('files_updated', $langForGlobal, ['count' => $updatedCount]).'</div>';
-                $content .= '<a href="'.htmlspecialchars((string) $dashboardBackHref).'" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
 
                 if ($updatedCount > 0) {
-                    $content .= '<h3>'.resolveLangKey('updated_files', $langForGlobal).'</h3><ul class="file-list">';
+                    $content .= '<article class="home-card updates-section-card">'
+                        .'<div class="home-card-header home-card-header--static">'
+                        .'<span class="home-card-title"><span class="home-card-icon" aria-hidden="true">'.lucideIcon('archive', 14).'</span>'.htmlspecialchars((string) resolveLangKey('updated_files', $langForGlobal)).'</span>'
+                        .'</div>'
+                        .'<ul class="file-list file-list--in-card">';
                     /** @var array<string> $updatedFilesList */
                     $updatedFilesList = $selfUpdateResult['updated_files'];
                     foreach ($updatedFilesList as $file) {
                         $content .= '<li>'.htmlspecialchars($file).'</li>';
                     }
-                    $content .= '</ul>';
+                    $content .= '</ul></article>';
                 }
+
+                $content .= '<a href="'.htmlspecialchars((string) $dashboardBackHref).'" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
 
                 $envPath = rtrim($targetDirFinal, '/').'/.env.local';
                 echo renderPage(resolveLangKey('title', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view']);
@@ -606,9 +611,9 @@ final class InstallerApplication
                     $bName = (isset($branch['name'])) ? (string) $branch['name'] : '';
                     $bCommit = (isset($branch['commit'])) ? (string) $branch['commit'] : '';
                     $bCommitShort = substr($bCommit, 0, 7);
-                    $instBranchHtml .= '<li><span><span class="branch-name">'.htmlspecialchars($bName).'</span>'
+                    $instBranchHtml .= '<li><span class="ref-item-info"><span class="branch-name">'.htmlspecialchars($bName).'</span>'
                         .'<span class="commit-sha">'.htmlspecialchars($bCommitShort).'</span></span>';
-                    $instBranchHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($bName).'"><input type="hidden" name="ref_commit" value="'.htmlspecialchars($bCommit).'"><input type="hidden" name="ref_type" value="branch"><button type="submit" name="self_update" class="btn">'.lucideIcon('download', 15).' '.resolveLangKey('install', $langForGlobal).'</button></form></li>';
+                    $instBranchHtml .= '<form method="post" class="install-form"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($bName).'"><input type="hidden" name="ref_commit" value="'.htmlspecialchars($bCommit).'"><input type="hidden" name="ref_type" value="branch"><button type="submit" name="self_update" class="btn">'.lucideIcon('download', 15).' '.resolveLangKey('install', $langForGlobal).'</button></form></li>';
                 }
 
                 $instTagHtml = '';
@@ -616,30 +621,49 @@ final class InstallerApplication
                     $tName = (isset($tag['name'])) ? (string) $tag['name'] : '';
                     $tCommit = (isset($tag['commit'])) ? (string) $tag['commit'] : '';
                     $tCommitShort = substr($tCommit, 0, 7);
-                    $instTagHtml .= '<li><span><span class="tag-name">'.htmlspecialchars($tName).'</span><span class="commit-sha">'.htmlspecialchars($tCommitShort).'</span></span>';
-                    $instTagHtml .= '<form method="post" style="display:inline"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($tName).'"><input type="hidden" name="ref_commit" value="'.htmlspecialchars($tCommit).'"><button type="submit" name="self_update" class="btn">'.lucideIcon('download', 15).' '.resolveLangKey('install', $langForGlobal).'</button></form></li>';
+                    $instTagHtml .= '<li><span class="ref-item-info"><span class="tag-name">'.htmlspecialchars($tName).'</span><span class="commit-sha">'.htmlspecialchars($tCommitShort).'</span></span>';
+                    $instTagHtml .= '<form method="post" class="install-form"'.$installerConfirmAttr.'><input type="hidden" name="self_update" value="1"><input type="hidden" name="ref" value="'.htmlspecialchars($tName).'"><input type="hidden" name="ref_commit" value="'.htmlspecialchars($tCommit).'"><button type="submit" name="self_update" class="btn">'.lucideIcon('download', 15).' '.resolveLangKey('install', $langForGlobal).'</button></form></li>';
                 }
 
-                if (empty($instBranches)) {
-                    $instBranchHtml = '<li><em>'.resolveLangKey('no_branches_found', $langForGlobal).'</em></li>';
-                }
-                if (empty($instTags)) {
-                    $instTagHtml = '<li><em>'.resolveLangKey('no_tags_found', $langForGlobal).'</em></li>';
-                }
-
-                $content = '<div class="repo-info"><strong>'.resolveLangKey('updater_version', $langForGlobal).':</strong> <code>'.htmlspecialchars($currentInstallerVersion).'</code><br><strong>'.resolveLangKey('installer_repository', $langForGlobal).':</strong> <code>'.htmlspecialchars($installerRepo).'</code></div>';
-                $content .= '<a href="?" class="back-link">'.resolveLangKey('back', $langForGlobal).'</a>';
                 $branchesActiveClass = ('tags' === $itab) ? '' : ' active';
                 $tagsActiveClass = ('tags' === $itab) ? ' active' : '';
-                $content .= '<div class="tabs">'
+
+                $installerHeaderCard = '<div class="home-card updates-header-card">'
+                    .'<div class="updates-meta">'
+                    .'<div class="updates-meta-row"><span class="updates-meta-label">'.resolveLangKey('updater_version', $langForGlobal).':</span><span class="updates-meta-value"><code>'.htmlspecialchars($currentInstallerVersion).'</code></span></div>'
+                    .'<div class="updates-meta-row"><span class="updates-meta-label">'.resolveLangKey('installer_repository', $langForGlobal).':</span><span class="updates-meta-value"><code>'.htmlspecialchars($installerRepo).'</code></span></div>'
+                    .'</div>'
+                    .'</div>';
+
+                $tabsHtml = '<div class="tabs installer-tabs">'
                     .'<a class="tab'.$branchesActiveClass.'" href="?view=installer&itab=branches">'.lucideIcon('git-branch', 15).' '.resolveLangKey('branches', $langForGlobal).' ('.count($instBranches).')</a>'
                     .'<a class="tab'.$tagsActiveClass.'" href="?view=installer&itab=tags">'.lucideIcon('tag', 15).' '.resolveLangKey('tags', $langForGlobal).' ('.count($instTags).')</a>'
                     .'</div>';
+
                 if ('tags' === $itab) {
-                    $content .= '<ul class="tag-list">'.$instTagHtml.'</ul>';
+                    $sectionIcon = 'tag';
+                    $sectionTitle = resolveLangKey('tags', $langForGlobal);
+                    $isEmpty = [] === $instTags;
+                    $emptyText = resolveLangKey('no_tags_found', $langForGlobal);
+                    $listBody = '<ul class="tag-list">'.$instTagHtml.'</ul>';
                 } else {
-                    $content .= '<ul class="branch-list">'.$instBranchHtml.'</ul>';
+                    $sectionIcon = 'git-branch';
+                    $sectionTitle = resolveLangKey('branches', $langForGlobal);
+                    $isEmpty = [] === $instBranches;
+                    $emptyText = resolveLangKey('no_branches_found', $langForGlobal);
+                    $listBody = '<ul class="branch-list">'.$instBranchHtml.'</ul>';
                 }
+
+                $sectionCard = '<article class="home-card updates-section-card">'
+                    .'<div class="home-card-header home-card-header--static">'
+                    .'<span class="home-card-title"><span class="home-card-icon" aria-hidden="true">'.lucideIcon($sectionIcon, 14).'</span>'.htmlspecialchars($sectionTitle).'</span>'
+                    .'</div>'
+                    .'<div class="updates-list">'
+                    .($isEmpty ? '<p class="updates-empty">'.htmlspecialchars($emptyText).'</p>' : $listBody)
+                    .'</div>'
+                    .'</article>';
+
+                $content = '<div class="home-stack">'.$installerHeaderCard.$tabsHtml.$sectionCard.'</div>';
 
                 echo renderPage(resolveLangKey('installer_management', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''), 'installer');
                 exit;
@@ -675,7 +699,7 @@ final class InstallerApplication
             $clearCacheConfirmAttr = renderConfirmAttributes($textClearCache, $textConfirmClearCache, $textClearCache);
             $trashIcon = lucideIcon('trash-2', 16);
             $cacheItemActionHtml = '<form method="post" class="info-list-action-form"'.$clearCacheConfirmAttr.'>'
-                .'<input type="hidden" name="view" value="">'
+                .'<input type="hidden" name="view" value="system">'
                 .'<button type="submit" name="clear_cache" class="info-list-action info-list-action--danger" title="'.htmlspecialchars($textClearCache).'" aria-label="'.htmlspecialchars($textClearCache).'">'.$trashIcon.'</button>'
                 .'</form>';
 
@@ -821,8 +845,6 @@ final class InstallerApplication
                 ],
             ];
 
-            $statusOverview = renderHomeSections(resolveLangKey('home_section_system', $langForGlobal), $homeInfoItems, $homeSections);
-
             $envPath = rtrim($targetDirStr, '/').'/.env.local';
             $hasPassword = (isset($config['password']) && is_scalar($config['password']) && '' !== (string) $config['password']);
             $view = resolveDashboardView($_GET['view'] ?? null);
@@ -894,12 +916,37 @@ final class InstallerApplication
                     .'</div>';
             } elseif (in_array($view, ['environment', 'databases', 'install-uuid'], true)) {
                 $content = '';
+            } elseif ('system' === $view) {
+                $content = '<div class="home-stack">'
+                    .renderHomeSections(
+                        resolveLangKey('home_section_system', $langForGlobal),
+                        $homeInfoItems,
+                        [],
+                        '',
+                        true,
+                    )
+                    .'</div>'.$phpModulesModalHtml;
             } else {
-                $content = renderHomeSections(
-                    resolveLangKey('home_section_system', $langForGlobal),
-                    $homeInfoItems,
-                    $homeSections,
-                ).$phpModulesModalHtml;
+                $welcomeBox = renderWelcomeBox(
+                    resolveLangKey('welcome_title', $langForGlobal),
+                    resolveLangKey('welcome_subtitle', $langForGlobal),
+                    [
+                        ['label' => resolveLangKey('welcome_link_installations', $langForGlobal), 'href' => '?view=updates', 'icon' => 'download'],
+                        ['label' => resolveLangKey('welcome_link_installer', $langForGlobal), 'href' => '?view=installer', 'icon' => 'wrench'],
+                        ['label' => resolveLangKey('welcome_link_documentation', $langForGlobal), 'href' => 'https://github.com/oakengine/installer', 'icon' => 'external-link', 'external' => true],
+                    ],
+                    $langForGlobal,
+                );
+                $content = '<div class="home-stack">'
+                    .$welcomeBox
+                    .renderHomeSections(
+                        resolveLangKey('home_section_system', $langForGlobal),
+                        [],
+                        $homeSections,
+                        '',
+                        false,
+                    )
+                    .'</div>';
             }
 
             echo renderPage(resolveLangKey('title', $langForGlobal), $content, null, $envPath, $hasPassword, $view);
