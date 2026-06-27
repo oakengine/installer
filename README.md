@@ -1,16 +1,28 @@
 # OakEngine Installer
 
-A lightweight PHP installer for OakEngine deployments. The project installation flow now uses a **server endpoint** that exposes runner, plugin, and data packages. Only the installer self-update still talks to GitHub.
+A lightweight PHP installer for OakEngine deployments. The project installation flow uses a **server endpoint** that exposes runner, plugin, and data packages. Only the installer self-update still talks to GitHub.
 
 ## Features
 
 - Install **runner**, **plugin**, and **data** packages from a package API endpoint.
+- **Install manifest tracking** – every install keeps a SHA1-backed list of all files it wrote, so updates can remove obsolete files and empty directories via diff.
 - Send a persistent **Install UUID** with every package request.
 - Self-update the installer from the `oakengine/installer` GitHub repository.
 - Edit `.env.local`, switch `APP_ENV`, manage database entries, and regenerate the Install UUID.
 - Check migration status, run Doctrine migrations, and clear the application cache.
 - Protect the installer with a password.
-- Preserve configured files and folders during runner updates.
+- Preserve plugin and data folders automatically during runner updates (separate manifests).
+
+## Documentation
+
+- English overview: this document.
+- German overview: [README.de.md](README.de.md).
+- Installer architecture and internals: [docs/architecture.md](docs/architecture.md).
+- Install manifest format and diff workflow: [docs/install-manifest.md](docs/install-manifest.md).
+- Package endpoint contract in detail: [docs/package-endpoint.md](docs/package-endpoint.md).
+- Self-update workflow from GitHub: [docs/self-update.md](docs/self-update.md).
+- Development, Docker, and test workflow: [docs/development.md](docs/development.md).
+- Security notes for production use: [docs/security.md](docs/security.md).
 
 ## Requirements
 
@@ -64,14 +76,22 @@ The installer accepts list and detail responses that provide package metadata in
 }
 ```
 
-For package lists, the endpoint can return either a plain array or an object with a `packages` array. The installer sends the current Install UUID as `X-Install-UUID` and, when configured, the package API token as `Authorization: Bearer ...`.
+For package lists, the endpoint can return either a plain array or an object with a `packages` array. The installer sends the current Install UUID as `X-Install-UUID` and, when configured, the package API token as `Authorization: Bearer ...`. Full details: [docs/package-endpoint.md](docs/package-endpoint.md).
+
+## How updates work
+
+For each install (runner, plugin, data) the installer writes a manifest file with one entry per extracted file and its SHA1 hash. On the next install, it diffs the old manifest against the new one and removes only the files that disappeared. Empty directories that result from the cleanup are also removed.
+
+- Format spec and example: [docs/install-manifest.md](docs/install-manifest.md)
+- Implementation: [`src/app/InstallManifestManager.php`](src/app/InstallManifestManager.php)
 
 ## Security notes
 
 - Set a password in `config.php`.
 - Restrict access to the installer directory with web server rules if possible.
 - Remove the installer when it is no longer needed.
+- More details: [docs/security.md](docs/security.md)
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [LICENSE](LICENSE).

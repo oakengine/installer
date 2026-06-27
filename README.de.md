@@ -1,16 +1,28 @@
 # OakEngine Installer
 
-Ein leichtgewichtiges PHP-Installationswerkzeug fuer Oak-Engine-Deployments. Die Projektinstallation laeuft jetzt ueber einen **Server-Endpunkt**, der Runner-, Plugin- und Data-Pakete bereitstellt. Nur das Self-Update des Installers nutzt weiterhin GitHub.
+Ein leichtgewichtiges PHP-Installationswerkzeug fuer Oak-Engine-Deployments. Die Projektinstallation laeuft ueber einen **Server-Endpunkt**, der Runner-, Plugin- und Data-Pakete bereitstellt. Nur das Self-Update des Installers nutzt weiterhin GitHub.
 
 ## Funktionen
 
-- Installation von **Runner**-, **Plugin**- und **Data**-Paketen ueber einen Package-API-Endpunkt
+- Installation von **Runner**-, **Plugin**- und **Data-Paketen** ueber einen Package-API-Endpunkt
+- **Install-Manifest** – jede Installation speichert eine SHA1-basierte Liste aller geschriebenen Dateien; Updates entfernen obsolete Dateien und leere Ordner per Diff
 - Versand einer persistenten **Install UUID** bei jeder Package-Anfrage
 - Self-Update des Installers aus dem GitHub-Repository `oakengine/installer`
 - Bearbeitung der `.env.local`, Umschalten von `APP_ENV`, Verwaltung von Datenbankeintraegen und Regeneration der Install UUID
 - Anzeige des Migrationsstatus, Ausfuehren von Doctrine-Migrationen und Leeren des Anwendungscaches
 - Schutz des Installers per Passwort
-- Erhalt konfigurierter Dateien und Ordner bei Runner-Updates
+- Automatischer Schutz von Plugin- und Data-Ordnern bei Runner-Updates (separate Manifeste)
+
+## Dokumentation
+
+- Deutsche Uebersicht: dieses Dokument.
+- Englische Uebersicht: [README.md](README.md).
+- Architektur und Interna: [docs/architecture.md](docs/architecture.md).
+- Format des Install-Manifests und Diff-Workflow: [docs/install-manifest.md](docs/install-manifest.md).
+- Package-Endpoint-Vertrag im Detail: [docs/package-endpoint.md](docs/package-endpoint.md).
+- Self-Update-Workflow ueber GitHub: [docs/self-update.md](docs/self-update.md).
+- Entwicklung, Docker und Test-Workflow: [docs/development.md](docs/development.md).
+- Sicherheitshinweise fuer den Produktivbetrieb: [docs/security.md](docs/security.md).
 
 ## Voraussetzungen
 
@@ -64,14 +76,22 @@ Der Installer akzeptiert Listen- und Detailantworten mit Paket-Metadaten in dies
 }
 ```
 
-Fuer Paketlisten darf der Endpunkt entweder ein nacktes Array oder ein Objekt mit einem `packages`-Array liefern. Bei jeder Package-API-Anfrage sendet der Installer die aktuelle Install UUID im Header `X-Install-UUID` und - falls konfiguriert - das API-Token als `Authorization: Bearer ...`.
+Fuer Paketlisten darf der Endpunkt entweder ein nacktes Array oder ein Objekt mit einem `packages`-Array liefern. Bei jeder Package-API-Anfrage sendet der Installer die aktuelle Install UUID im Header `X-Install-UUID` und - falls konfiguriert - das API-Token als `Authorization: Bearer ...`. Details: [docs/package-endpoint.md](docs/package-endpoint.md).
+
+## So funktionieren Updates
+
+Fuer jede Installation (Runner, Plugin, Data) legt der Installer ein Manifest mit allen extrahierten Dateien und SHA1-Hash ab. Bei einem Update wird das alte Manifest gegen das neue diff-t und nur die Dateien geloescht, die nicht mehr vorkommen. Dadurch leer gewordene Ordner werden ebenfalls entfernt.
+
+- Format und Beispiel: [docs/install-manifest.md](docs/install-manifest.md)
+- Implementierung: [`src/app/InstallManifestManager.php`](src/app/InstallManifestManager.php)
 
 ## Sicherheitshinweise
 
 - In `config.php` ein Passwort setzen.
 - Den Installer-Pfad nach Moeglichkeit zusaetzlich per Webserver absichern.
 - Den Installer entfernen, wenn er nicht mehr benoetigt wird.
+- Details: [docs/security.md](docs/security.md)
 
 ## Lizenz
 
-MIT. Siehe `LICENSE`.
+MIT. Siehe [LICENSE](LICENSE).
