@@ -14,12 +14,7 @@ function createDirectoryTree(string $directory, int $mode = 0o755): bool
     $currentDirectory = $directory;
     while (!is_dir($currentDirectory)) {
         $directoriesToCreate[] = $currentDirectory;
-        $parentDirectory = dirname($currentDirectory);
-        if ($parentDirectory === $currentDirectory) {
-            break;
-        }
-
-        $currentDirectory = $parentDirectory;
+        $currentDirectory = dirname($currentDirectory);
     }
 
     foreach (array_reverse($directoriesToCreate) as $directoryToCreate) {
@@ -27,9 +22,7 @@ function createDirectoryTree(string $directory, int $mode = 0o755): bool
             return false;
         }
 
-        if (!chmod($directoryToCreate, $mode)) {
-            return false;
-        }
+        @chmod($directoryToCreate, $mode);
     }
 
     return true;

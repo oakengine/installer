@@ -184,11 +184,20 @@ final class InstallerApplication
                 'installer_version' => (string) $currentInstallerVersion,
                 'project_version' => (string) $currentProjectVersion,
             ];
-            handleAuthentication(
+            $authResult = evaluateAuthentication(
                 $configForAuth,
                 $showVersionsBeforeLogin,
                 $metaForAuth
             );
+
+            if ('login-failed' === $authResult['outcome'] || 'show-form' === $authResult['outcome']) {
+                renderLoginForm($authResult['error'], $authResult['version_meta']);
+                exit;
+            }
+            if ('login-ok' === $authResult['outcome'] || 'logged-out' === $authResult['outcome']) {
+                header('Location: ?');
+                exit;
+            }
 
             $client = new GitHubClient($apiBaseUrl, $token, $currentInstallerVersion);
             $githubCacheDir = $projectRoot.'/var/cache/github-api';

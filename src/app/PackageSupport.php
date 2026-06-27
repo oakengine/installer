@@ -60,18 +60,15 @@ function resolveInstalledProjectVersion(string $targetDir): string
     $decoded = readComposerJsonMetadata($composerPath);
     if ([] !== $decoded) {
         $extra = is_array($decoded['extra'] ?? null) ? $decoded['extra'] : [];
-        $runner = is_array($extra['oak-engine-runner'] ?? null) ? $extra['oak-engine-runner'] : [];
+        $runnerMeta = is_array($extra['oak-engine-runner'] ?? null) ? $extra['oak-engine-runner'] : [];
+        /** @var array<string, mixed> $runner */
+        $runner = $runnerMeta;
         if (isset($runner['version']) && is_scalar($runner['version'])) {
             $version = trim((string) $runner['version']);
             if ('' !== $version) {
-                $channel = '';
-                if (isset($runner['channel']) && is_scalar($runner['channel'])) {
-                    $channel = trim((string) $runner['channel']);
-                } elseif (isset($runner['chanel']) && is_scalar($runner['chanel'])) {
-                    $channel = trim((string) $runner['chanel']);
-                }
+                $channel = resolveInstalledPackageChannel($runner);
 
-                return ('' !== $channel) ? sprintf('%s (%s)', $version, $channel) : $version;
+                return 'unknown' !== $channel ? sprintf('%s (%s)', $version, $channel) : $version;
             }
         }
     }
@@ -143,7 +140,8 @@ function resolveInstalledPackages(string $targetDir, string $packageType): array
     );
 
     foreach ($iterator as $item) {
-        if (!$item instanceof SplFileInfo || !$item->isFile() || 'composer.json' !== $item->getBasename()) {
+        \assert($item instanceof SplFileInfo);
+        if (!$item->isFile() || 'composer.json' !== $item->getBasename()) {
             continue;
         }
 
@@ -158,7 +156,9 @@ function resolveInstalledPackages(string $targetDir, string $packageType): array
         }
 
         $extra = is_array($decoded['extra'] ?? null) ? $decoded['extra'] : [];
-        $metadata = is_array($extra[$metadataKey] ?? null) ? $extra[$metadataKey] : [];
+        $metaRaw = is_array($extra[$metadataKey] ?? null) ? $extra[$metadataKey] : [];
+        /** @var array<string, mixed> $metadata */
+        $metadata = $metaRaw;
         if ([] === $metadata) {
             continue;
         }
@@ -172,18 +172,7 @@ function resolveInstalledPackages(string $targetDir, string $packageType): array
             continue;
         }
 
-        $channel = 'unknown';
-        if (isset($metadata['channel']) && is_scalar($metadata['channel'])) {
-            $normalizedChannel = trim((string) $metadata['channel']);
-            if ('' !== $normalizedChannel) {
-                $channel = $normalizedChannel;
-            }
-        } elseif (isset($metadata['chanel']) && is_scalar($metadata['chanel'])) {
-            $normalizedChannel = trim((string) $metadata['chanel']);
-            if ('' !== $normalizedChannel) {
-                $channel = $normalizedChannel;
-            }
-        }
+        $channel = resolveInstalledPackageChannel($metadata);
 
         $composerName = '';
         if (isset($decoded['name']) && is_scalar($decoded['name'])) {
@@ -215,20 +204,29 @@ function resolveInstalledPackageDisplayName(string $composerName, string $packag
 
     if (str_starts_with($normalizedPackageDirectory, $normalizedTargetDir.'/')) {
         $relativePath = substr($normalizedPackageDirectory, strlen($normalizedTargetDir) + 1);
-        if ('' !== $relativePath) {
-            $parts = explode('/', $relativePath);
+        $parts = '' !== $relativePath ? explode('/', $relativePath) : [];
 
-            return $parts[0];
+        return $parts[0] ?? basename($packageDirectory);
+    }
+
+    return '' !== $composerName ? basename(str_replace('\\', '/', $composerName)) : basename($packageDirectory);
+}
+
+/**
+ * @param array<string, mixed> $metadata
+ */
+function resolveInstalledPackageChannel(array $metadata): string
+{
+    foreach (['channel', 'chanel'] as $key) {
+        if (isset($metadata[$key]) && is_scalar($metadata[$key])) {
+            $normalized = trim((string) $metadata[$key]);
+            if ('' !== $normalized) {
+                return $normalized;
+            }
         }
     }
 
-    if ('' !== $composerName) {
-        $normalizedName = str_replace('\\', '/', $composerName);
-
-        return basename($normalizedName);
-    }
-
-    return basename($packageDirectory);
+    return 'unknown';
 }
 
 function resolvePackageInstallTargetDir(string $targetDir, string $packageType, string $packageDir = ''): string

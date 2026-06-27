@@ -595,6 +595,150 @@ final class IndexFunctionsTest extends TestCase
         }
     }
 
+    public function testHandleAuthenticationReturnsImmediatelyWhenNoPasswordConfigured(): void
+    {
+        $_SESSION = [];
+        $_GET = [];
+        $_POST = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+
+        $result = evaluateAuthentication([], false, []);
+
+        $this->assertSame('no-password', $result['outcome']);
+    }
+
+    public function testHandleAuthenticationReturnsImmediatelyWhenAlreadyAuthenticated(): void
+    {
+        $_SESSION = ['oak_installer_authenticated' => true];
+        $_GET = [];
+        $_POST = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+
+        $result = evaluateAuthentication(['password' => 'secret'], false, []);
+
+        $this->assertSame('authenticated', $result['outcome']);
+        $this->assertTrue($_SESSION['oak_installer_authenticated']);
+    }
+
+    public function testHandleAuthenticationIgnoresNonScalarPasswordConfig(): void
+    {
+        $_SESSION = [];
+        $_GET = [];
+        $_POST = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+
+        $result = evaluateAuthentication(['password' => ['nested']], false, []);
+
+        $this->assertSame('no-password', $result['outcome']);
+    }
+
+    public function testHandleAuthenticationShowsFormForUnauthenticatedGet(): void
+    {
+        $GLOBALS['lang'] = ['incorrect_password' => 'wrong'];
+        $_SESSION = [];
+        $_GET = [];
+        $_POST = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+
+        $result = evaluateAuthentication(['password' => 'secret'], false, []);
+
+        $this->assertSame('show-form', $result['outcome']);
+        $this->assertSame('', $result['error']);
+        $this->assertArrayNotHasKey('oak_installer_authenticated', $_SESSION);
+    }
+
+    public function testHandleAuthenticationShowsFormWithVersionMetaWhenConfigured(): void
+    {
+        $GLOBALS['lang'] = ['incorrect_password' => 'wrong'];
+        $_SESSION = [];
+        $_GET = [];
+        $_POST = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+
+        $result = evaluateAuthentication(
+            ['password' => 'secret'],
+            true,
+            ['installer_version' => '1.0.0', 'project_version' => '2.0.0']
+        );
+
+        $this->assertSame('show-form', $result['outcome']);
+        $this->assertSame(['installer_version' => '1.0.0', 'project_version' => '2.0.0'], $result['version_meta']);
+    }
+
+    public function testHandleAuthenticationAuthenticatesOnPlainPassword(): void
+    {
+        $GLOBALS['lang'] = ['incorrect_password' => 'wrong'];
+        $_SESSION = [];
+        $_GET = [];
+        $_POST = ['password' => 'secret'];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+
+        $result = evaluateAuthentication(['password' => 'secret'], false, []);
+
+        $this->assertSame('login-ok', $result['outcome']);
+        $this->assertTrue($_SESSION['oak_installer_authenticated']);
+        $this->assertArrayHasKey('oak_installer_auth_time', $_SESSION);
+    }
+
+    public function testHandleAuthenticationAuthenticatesWithHashedPassword(): void
+    {
+        $GLOBALS['lang'] = ['incorrect_password' => 'wrong'];
+        $hashed = password_hash('secret', PASSWORD_BCRYPT);
+        $_SESSION = [];
+        $_GET = [];
+        $_POST = ['password' => 'secret'];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+
+        $result = evaluateAuthentication(['password' => $hashed], false, []);
+
+        $this->assertSame('login-ok', $result['outcome']);
+        $this->assertTrue($_SESSION['oak_installer_authenticated']);
+    }
+
+    public function testHandleAuthenticationReturnsFailureOnWrongPassword(): void
+    {
+        $GLOBALS['lang'] = ['incorrect_password' => 'wrong-password'];
+        $_SESSION = [];
+        $_GET = [];
+        $_POST = ['password' => 'wrong'];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+
+        $result = evaluateAuthentication(['password' => 'correct'], false, []);
+
+        $this->assertSame('login-failed', $result['outcome']);
+        $this->assertSame('wrong-password', $result['error']);
+        $this->assertArrayNotHasKey('oak_installer_authenticated', $_SESSION);
+    }
+
+    public function testHandleAuthenticationHandlesLogoutRequest(): void
+    {
+        $GLOBALS['lang'] = ['incorrect_password' => 'wrong'];
+        $_SESSION = ['oak_installer_authenticated' => true, 'extra' => 'value'];
+        $_GET = ['logout' => '1'];
+        $_POST = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+
+        $result = evaluateAuthentication(['password' => 'secret'], false, []);
+
+        $this->assertSame('logged-out', $result['outcome']);
+        $this->assertEmpty($_SESSION);
+    }
+
+    public function testHandleAuthenticationIgnoresNonStringPostPassword(): void
+    {
+        $GLOBALS['lang'] = ['incorrect_password' => 'wrong'];
+        $_SESSION = [];
+        $_GET = [];
+        $_POST = ['password' => ['not-a-string']];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+
+        $result = evaluateAuthentication(['password' => 'secret'], false, []);
+
+        $this->assertSame('show-form', $result['outcome']);
+    }
+
+
+
     public function testAllLanguageFilesUseOakEngineInstallerTitle(): void
     {
         foreach (glob(__DIR__.'/../src/lang/*.php') as $file) {
@@ -613,6 +757,158 @@ final class IndexFunctionsTest extends TestCase
 
         $this->assertLessThan(0, comparePackageVersionsDesc('1.0.0', 'main'));
         $this->assertGreaterThan(0, comparePackageVersionsDesc('main', '1.0.0'));
+    }
+
+    public function testComparePackageVersionsDescHandlesBothNonSemver(): void
+    {
+        $this->assertSame(0, comparePackageVersionsDesc('main', 'main'));
+        $this->assertGreaterThan(0, comparePackageVersionsDesc('alpha', 'beta'));
+        $this->assertLessThan(0, comparePackageVersionsDesc('zeta', 'alpha'));
+    }
+
+    public function testReadComposerJsonMetadataReturnsEmptyWhenFileUnreadable(): void
+    {
+        $path = $this->createTempDirectory().'/composer.json';
+        file_put_contents($path, '{}');
+        chmod($path, 0o000);
+
+        try {
+            $this->assertSame([], readComposerJsonMetadata($path));
+        } finally {
+            chmod($path, 0o644);
+        }
+    }
+
+    public function testReadComposerJsonMetadataReturnsEmptyForInvalidJson(): void
+    {
+        $path = $this->createTempDirectory().'/composer.json';
+        file_put_contents($path, '{not-valid-json');
+
+        $this->assertSame([], readComposerJsonMetadata($path));
+    }
+
+    public function testResolveComposerPackageVersionReturnsEmptyForNonScalarVersion(): void
+    {
+        $path = $this->createTempDirectory().'/composer.json';
+        file_put_contents($path, json_encode(['version' => ['nested']], JSON_THROW_ON_ERROR));
+
+        $this->assertSame('', resolveComposerPackageVersion($path));
+    }
+
+    public function testResolveInstalledPackagesScansRunnerDirectory(): void
+    {
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/vendor/example/core', 0o755, true);
+        file_put_contents($targetDir.'/vendor/example/core/composer.json', json_encode([
+            'extra' => ['oak-engine-runner' => ['version' => '1.0.0']],
+        ], JSON_THROW_ON_ERROR));
+
+        $packages = resolveInstalledPackages($targetDir, 'runner');
+
+        $this->assertCount(1, $packages);
+        $this->assertSame('vendor', $packages[0]['name']);
+    }
+
+    public function testResolveInstalledPackagesSkipsUnreadableAndInvalid(): void
+    {
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/runner/good', 0o755, true);
+        mkdir($targetDir.'/runner/unreadable', 0o755, true);
+        mkdir($targetDir.'/runner/invalid', 0o755, true);
+        mkdir($targetDir.'/runner/no-meta', 0o755, true);
+        mkdir($targetDir.'/runner/no-version', 0o755, true);
+        file_put_contents($targetDir.'/runner/good/composer.json', json_encode([
+            'extra' => ['oak-engine-plugin' => ['version' => '1.0.0']],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($targetDir.'/runner/unreadable/composer.json', '{}');
+        chmod($targetDir.'/runner/unreadable/composer.json', 0o000);
+        file_put_contents($targetDir.'/runner/invalid/composer.json', 'not-json');
+        file_put_contents($targetDir.'/runner/no-meta/composer.json', json_encode(['name' => 'x'], JSON_THROW_ON_ERROR));
+        file_put_contents($targetDir.'/runner/no-version/composer.json', json_encode([
+            'extra' => ['oak-engine-plugin' => ['channel' => 'stable']],
+        ], JSON_THROW_ON_ERROR));
+
+        $packages = resolveInstalledPackages($targetDir, 'plugin');
+
+        chmod($targetDir.'/runner/unreadable/composer.json', 0o644);
+        $this->assertCount(1, $packages);
+        $this->assertSame('good', $packages[0]['name']);
+    }
+
+    public function testResolveInstalledPackagesFallsBackToFirstPathSegment(): void
+    {
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/runner/somewhere/deep', 0o755, true);
+        file_put_contents($targetDir.'/runner/somewhere/deep/composer.json', json_encode([
+            'extra' => ['oak-engine-plugin' => ['version' => '1.0.0']],
+        ], JSON_THROW_ON_ERROR));
+
+        $packages = resolveInstalledPackages($targetDir, 'plugin');
+
+        $this->assertCount(1, $packages);
+        $this->assertSame('somewhere', $packages[0]['name']);
+    }
+
+    public function testResolveInstalledPackageDisplayNameFallsBackToComposerName(): void
+    {
+        $this->assertSame(
+            'awesome-plugin',
+            resolveInstalledPackageDisplayName('vendor/awesome-plugin', '/some/other/path', '/scan/dir')
+        );
+    }
+
+    public function testResolveInstalledPackageDisplayNameFallsBackToDirectoryName(): void
+    {
+        $this->assertSame(
+            'deep',
+            resolveInstalledPackageDisplayName('', '/some/other/path/deep', '/scan/dir')
+        );
+    }
+
+    public function testResolveInstalledPackagesAcceptsLegacyChanelKey(): void
+    {
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/runner/legacy', 0o755, true);
+        file_put_contents($targetDir.'/runner/legacy/composer.json', json_encode([
+            'extra' => ['oak-engine-plugin' => ['version' => '1.0.0', 'chanel' => 'legacy']],
+        ], JSON_THROW_ON_ERROR));
+
+        $packages = resolveInstalledPackages($targetDir, 'plugin');
+
+        $this->assertCount(1, $packages);
+        $this->assertSame('legacy', $packages[0]['channel']);
+    }
+
+    public function testResolveInstalledPackagesSkipsNonComposerJsonFiles(): void
+    {
+        $targetDir = $this->createTempDirectory();
+        mkdir($targetDir.'/runner/good', 0o755, true);
+        mkdir($targetDir.'/runner/mixed', 0o755, true);
+        file_put_contents($targetDir.'/runner/good/composer.json', json_encode([
+            'extra' => ['oak-engine-plugin' => ['version' => '1.0.0']],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($targetDir.'/runner/mixed/README.md', 'just a readme');
+        file_put_contents($targetDir.'/runner/mixed/some-class.php', '<?php class Foo {}');
+
+        $packages = resolveInstalledPackages($targetDir, 'plugin');
+
+        $this->assertCount(1, $packages);
+        $this->assertSame('good', $packages[0]['name']);
+    }
+
+    public function testResolveInstalledPackagesReturnsEmptyForMissingDirectory(): void
+    {
+        $this->assertSame([], resolveInstalledPackages($this->createTempDirectory().'/missing', 'plugin'));
+    }
+
+    public function testResolveInstalledProjectVersionAcceptsLegacyChanelKey(): void
+    {
+        $targetDir = $this->createTempDirectory();
+        file_put_contents($targetDir.'/composer.json', json_encode([
+            'extra' => ['oak-engine-runner' => ['version' => '1.0.0', 'chanel' => 'legacy']],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame('1.0.0 (legacy)', resolveInstalledProjectVersion($targetDir));
     }
 
     public function testRenderInstalledPackageListHtml(): void
@@ -703,6 +999,39 @@ final class IndexFunctionsTest extends TestCase
         $this->assertSame('unknown', resolveLangKey('unknown', $lang));
     }
 
+    public function testDoubleUnderscoreFallsBackToKeyWhenLangNotLoaded(): void
+    {
+        global $lang;
+        $previousLang = $lang;
+        unset($lang);
+
+        $this->assertSame('missing_key', __('missing_key'));
+
+        $lang = $previousLang;
+    }
+
+    public function testDoubleUnderscoreFallsBackToKeyWhenLangIsNotAnArray(): void
+    {
+        global $lang;
+        $previousLang = $lang;
+        $lang = 'not-an-array';
+
+        $this->assertSame('missing_key', __('missing_key'));
+
+        $lang = $previousLang;
+    }
+
+    public function testDoubleUnderscoreResolvesAgainstGlobalLang(): void
+    {
+        global $lang;
+        $previousLang = $lang;
+        $lang = ['greet' => 'Hello :name'];
+
+        $this->assertSame('Hello World', __('greet', ['name' => 'World']));
+
+        $lang = $previousLang;
+    }
+
     public function testResolveInstallerVersion(): void
     {
         $tags = [
@@ -714,6 +1043,138 @@ final class IndexFunctionsTest extends TestCase
         $this->assertSame('v1.5.0', resolveInstallerVersion(['installer_version' => 'v1.5.0'], $tags));
         $this->assertSame('dev-main', resolveInstallerVersion([], $tags));
         $this->assertSame('dev-main', resolveInstallerVersion([], []));
+    }
+
+    public function testResolveInstallerVersionAppendsCommitForBranchName(): void
+    {
+        $this->assertSame(
+            'develop1234567',
+            resolveInstallerVersion(['installer_version' => 'develop', 'installer_commit' => '1234567890abcdef'], [])
+        );
+    }
+
+    public function testResolveInstallerVersionReturnsBranchNameWithoutCommit(): void
+    {
+        $this->assertSame('develop', resolveInstallerVersion(['installer_version' => 'develop'], []));
+    }
+
+    public function testResolveInstallerVersionIgnoresNonScalarConfiguredVersion(): void
+    {
+        $this->assertSame(
+            'dev-main',
+            resolveInstallerVersion(['installer_version' => ['nested']], [])
+        );
+    }
+
+    public function testWriteConfigValuesReturnsFalseWhenFileMissing(): void
+    {
+        $missing = $this->createTempDirectory().'/missing-config.php';
+
+        $this->assertFalse(writeConfigValues($missing, ['foo' => 'bar']));
+    }
+
+    public function testWriteConfigValuesTreatsNonArrayReturnAsEmpty(): void
+    {
+        $configPath = $this->createTempDirectory().'/config.php';
+        file_put_contents($configPath, "<?php\n\ndeclare(strict_types=1);\n\nreturn 'not-an-array';\n");
+
+        $this->assertTrue(writeConfigValues($configPath, ['foo' => 'bar']));
+
+        /** @var array<string, mixed> $updated */
+        $updated = require $configPath;
+        $this->assertSame('bar', $updated['foo']);
+    }
+
+    public function testUpdateUpdaterFromTagThrowsWhenZipInvalid(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Failed to open update ZIP');
+
+        updateUpdaterFromTag(new FakeGitHubClient('not-a-zip'), 'oakengine/installer', 'v1.0.0', 'src', $this->createTempDirectory());
+    }
+
+    public function testUpdateUpdaterFromTagThrowsWhenArchiveHasNoDirectory(): void
+    {
+        $dir = $this->createTempDirectory();
+        $zipPath = $dir.'/no-dir.zip';
+        $zip = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFromString('file.txt', 'no-dir-content');
+        $zip->close();
+        $zipContent = (string) file_get_contents($zipPath);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('No directory in update archive');
+
+        updateUpdaterFromTag(new FakeGitHubClient($zipContent), 'oakengine/installer', 'v1.0.0', 'src', $this->createTempDirectory());
+    }
+
+    public function testUpdateUpdaterFromTagThrowsWhenUpdaterSourcePathMissing(): void
+    {
+        $archiveContent = $this->createZipArchive(['src/index.php' => '<?php echo "x";']);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Updater source path not found');
+
+        updateUpdaterFromTag(new FakeGitHubClient($archiveContent), 'oakengine/installer', 'v1.0.0', 'not-in-archive', $this->createTempDirectory());
+    }
+
+    public function testUpdateUpdaterFromTagSkipsDirectories(): void
+    {
+        $archiveContent = $this->createZipArchive([
+            'src/index.php' => '<?php echo "x";',
+        ]);
+
+        $destinationDir = $this->createTempDirectory();
+        $result = updateUpdaterFromTag(new FakeGitHubClient($archiveContent), 'oakengine/installer', 'v1.0.0', 'src', $destinationDir);
+
+        $this->assertContains('index.php', $result['updated_files']);
+    }
+
+    public function testUpdateUpdaterFromTagThrowsWhenTargetDirectoryCannotBeCreated(): void
+    {
+        $destinationDir = $this->createTempDirectory();
+        file_put_contents($destinationDir.'/app', 'blocker-as-file');
+        $archiveContent = $this->createZipArchive([
+            'src/app/Foo.php' => '<?php echo "x";',
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Target directory cannot be created');
+
+        updateUpdaterFromTag(new FakeGitHubClient($archiveContent), 'oakengine/installer', 'v1.0.0', 'src', $destinationDir);
+    }
+
+    public function testUpdateUpdaterFromTagThrowsWhenCopyFails(): void
+    {
+        $destinationDir = $this->createTempDirectory();
+        mkdir($destinationDir.'/index.php', 0o755, true);
+        $archiveContent = $this->createZipArchive([
+            'src/index.php' => '<?php echo "x";',
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Failed to update file');
+
+        updateUpdaterFromTag(new FakeGitHubClient($archiveContent), 'oakengine/installer', 'v1.0.0', 'src', $destinationDir);
+    }
+
+    public function testUpdateUpdaterFromTagThrowsWhenTempUpdateDirectoryCannotBeCreated(): void
+    {
+        $destinationDir = $this->createTempDirectory();
+        chmod($destinationDir, 0o555);
+        $archiveContent = $this->createZipArchive([
+            'src/index.php' => '<?php echo "x";',
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Temp update directory cannot be created');
+
+        try {
+            updateUpdaterFromTag(new FakeGitHubClient($archiveContent), 'oakengine/installer', 'v1.0.0', 'src', $destinationDir);
+        } finally {
+            chmod($destinationDir, 0o755);
+        }
     }
 
     public function testGetCachedGitHubRepositoryRefsWritesAndReadsFreshCache(): void
@@ -776,6 +1237,91 @@ final class IndexFunctionsTest extends TestCase
             'tags' => [['name' => 'v1.0.0', 'commit' => 'tag-sha']],
             'branches' => [['name' => 'main', 'commit' => 'branch-sha']],
         ]);
+    }
+
+    public function testWriteGitHubRepositoryRefsCacheThrowsWhenCreateDirectoryTreeFails(): void
+    {
+        $blocker = $this->createTempDirectory();
+        file_put_contents($blocker.'/file', 'blocker');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('GitHub cache directory cannot be created');
+
+        writeGitHubRepositoryRefsCache($blocker.'/file/sub/refs.php', [
+            'tags' => [['name' => 'v1.0.0', 'commit' => 'tag-sha']],
+            'branches' => [['name' => 'main', 'commit' => 'branch-sha']],
+        ]);
+    }
+
+    public function testWriteGitHubRepositoryRefsCacheThrowsWhenFileCannotBeWritten(): void
+    {
+        $cacheDir = $this->createTempDirectory().'/cache';
+        mkdir($cacheDir, 0o755, true);
+        chmod($cacheDir, 0o555);
+        $cacheFile = buildGitHubRepositoryRefsCacheFilePath($cacheDir, 'oakengine/installer');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('GitHub cache file cannot be written');
+
+        try {
+            writeGitHubRepositoryRefsCache($cacheFile, [
+                'tags' => [['name' => 'v1.0.0', 'commit' => 'tag-sha']],
+                'branches' => [['name' => 'main', 'commit' => 'branch-sha']],
+            ]);
+        } finally {
+            chmod($cacheDir, 0o755);
+        }
+    }
+
+    public function testNormalizeGitHubRepositoryRefsCacheValueReturnsNullForNonArray(): void
+    {
+        $this->assertNull(normalizeGitHubRepositoryRefsCacheValue('not-an-array'));
+        $this->assertNull(normalizeGitHubRepositoryRefsCacheValue(42));
+        $this->assertNull(normalizeGitHubRepositoryRefsCacheValue(null));
+    }
+
+    public function testNormalizeGitHubRepositoryRefsCacheValueReturnsNullForNonArrayEntry(): void
+    {
+        $this->assertNull(normalizeGitHubRepositoryRefsCacheValue([
+            'valid' => ['name' => 'v1', 'commit' => 'sha'],
+            'invalid' => 'not-an-array',
+        ]));
+    }
+
+    public function testNormalizeGitHubRepositoryRefsCacheValueReturnsNullForMissingFields(): void
+    {
+        $this->assertNull(normalizeGitHubRepositoryRefsCacheValue([
+            ['name' => 'v1'],
+        ]));
+        $this->assertNull(normalizeGitHubRepositoryRefsCacheValue([
+            ['commit' => 'sha'],
+        ]));
+        $this->assertNull(normalizeGitHubRepositoryRefsCacheValue([
+            ['name' => 1.5, 'commit' => 'sha'],
+        ]));
+        $this->assertNull(normalizeGitHubRepositoryRefsCacheValue([
+            ['name' => 'v1', 'commit' => ['sha']],
+        ]));
+    }
+
+    public function testNormalizeGitHubRepositoryRefsCacheValueReturnsNullForEmptyFields(): void
+    {
+        $this->assertNull(normalizeGitHubRepositoryRefsCacheValue([
+            ['name' => '   ', 'commit' => 'sha'],
+        ]));
+        $this->assertNull(normalizeGitHubRepositoryRefsCacheValue([
+            ['name' => 'v1', 'commit' => ''],
+        ]));
+    }
+
+    public function testReadGitHubRepositoryRefsCacheReturnsNullWhenTagsOrBranchesInvalid(): void
+    {
+        $cacheDir = $this->createTempDirectory();
+        mkdir($cacheDir, 0o755, true);
+        $cacheFile = buildGitHubRepositoryRefsCacheFilePath($cacheDir, 'oakengine/installer');
+        file_put_contents($cacheFile, "<?php\n\ndeclare(strict_types=1);\n\nreturn ['tags' => 'invalid', 'branches' => []];\n");
+
+        $this->assertNull(readGitHubRepositoryRefsCache($cacheFile, 600));
     }
 
     public function testGetCachedGitHubRepositoryRefsReturnsEmptyListsWhenGithubFails(): void
@@ -926,6 +1472,87 @@ final class IndexFunctionsTest extends TestCase
         $this->assertFileExists($targetDir.'/.env.local');
         $this->assertFileExists($targetDir.'/runner/keep.txt');
         $this->assertFileDoesNotExist($targetDir.'/remove.txt');
+    }
+
+    public function testCleanTargetDirectoryReturnsEmptyResultForMissingDirectory(): void
+    {
+        $result = cleanTargetDirectory($this->createTempDirectory().'/missing');
+
+        $this->assertSame(0, $result['deleted_count']);
+        $this->assertSame([], $result['preserved']);
+    }
+
+    public function testClearCacheDirectoryReportsErrorsWhenIteratorThrows(): void
+    {
+        $cacheDir = $this->createTempDirectory();
+        mkdir($cacheDir.'/sub', 0o755, true);
+        file_put_contents($cacheDir.'/sub/file.txt', 'x');
+        chmod($cacheDir.'/sub', 0o000);
+
+        $result = clearCacheDirectory($cacheDir);
+
+        chmod($cacheDir.'/sub', 0o755);
+        $this->assertNotEmpty($result['errors']);
+    }
+
+    public function testExtractZipThrowsWhenZipCannotBeOpened(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Failed to open ZIP');
+
+        extractZip('not-a-real-zip', $this->createTempDirectory(), [], []);
+    }
+
+    public function testExtractZipThrowsWhenTempDirectoryCannotBeCreated(): void
+    {
+        $blocker = $this->createTempDirectory();
+        file_put_contents($blocker.'/file', 'blocker');
+        $targetDir = $blocker.'/file/target';
+
+        mkdir($targetDir, 0o755, true);
+        chmod($targetDir, 0o555);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Temp extract directory cannot be created');
+
+        try {
+            extractZip($this->createZipArchive(['file.txt' => 'x']), $targetDir, [], []);
+        } finally {
+            chmod($targetDir, 0o755);
+            recursiveDelete($targetDir);
+        }
+    }
+
+    public function testExtractZipThrowsWhenArchiveHasNoDirectory(): void
+    {
+        $dir = $this->createTempDirectory();
+        $zipPath = $dir.'/no-dir.zip';
+        $zip = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFromString('file.txt', 'just-a-file-no-dir');
+        $zip->close();
+        $zipContent = (string) file_get_contents($zipPath);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('No directory in archive');
+
+        extractZip($zipContent, $this->createTempDirectory(), [], []);
+    }
+
+    public function testExtractZipThrowsWhenSubdirectoryCannotBeCreated(): void
+    {
+        $targetDir = $this->createTempDirectory();
+        file_put_contents($targetDir.'/sub', 'blocker-as-file');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Target directory cannot be created');
+
+        extractZip(
+            $this->createZipArchive(['sub/file.txt' => 'x']),
+            $targetDir,
+            [],
+            []
+        );
     }
 
     public function testExtractZipHonorsExcludeRulesOnly(): void
@@ -1130,6 +1757,53 @@ ENV;
 
         $this->assertSame(0o755, fileperms($targetDir) & 0o777);
         $this->assertFalse(updateInstallUuidInEnvLocal($manager, $envPath, 'invalid-uuid'));
+    }
+
+    public function testEnsureEnvLocalInstallUuidThrowsWhenFileUnreadable(): void
+    {
+        $manager = new InstallUuidManager();
+        $envPath = $this->createTempDirectory().'/.env.local';
+        file_put_contents($envPath, 'APP_ENV=prod');
+        chmod($envPath, 0o000);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Unable to read');
+
+        try {
+            $manager->ensureEnvLocalInstallUuid($envPath);
+        } finally {
+            chmod($envPath, 0o644);
+        }
+    }
+
+    public function testEnsureEnvLocalInstallUuidThrowsWhenDirectoryCannotBeCreated(): void
+    {
+        $manager = new InstallUuidManager();
+        $blocker = $this->createTempDirectory();
+        file_put_contents($blocker.'/file', 'blocker');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Unable to create directory');
+
+        $manager->ensureEnvLocalInstallUuid($blocker.'/file/.env.local');
+    }
+
+    public function testEnsureEnvLocalInstallUuidThrowsWhenFileCannotBeWritten(): void
+    {
+        $manager = new InstallUuidManager();
+        $targetDir = $this->createTempDirectory().'/nested';
+        mkdir($targetDir, 0o755, true);
+        chmod($targetDir, 0o555);
+        $envPath = $targetDir.'/.env.local';
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Unable to write');
+
+        try {
+            $manager->ensureEnvLocalInstallUuid($envPath);
+        } finally {
+            chmod($targetDir, 0o755);
+        }
     }
 
     public function testUpdateAppSecretInEnvLocal(): void
@@ -1829,6 +2503,89 @@ ENV;
         $this->assertFalse($noDb['error']);
         $this->assertSame(0, $noDb['count']);
         $this->assertArrayHasKey('no_db', $noDb);
+    }
+
+    public function testGetMigrationsStatusExtractsMessageFromJson(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $dir = $this->createTempDirectory();
+        mkdir($dir.'/migrations', 0o755, true);
+        file_put_contents($dir.'/migrations/Version1.php', '<?php');
+        $this->createConsoleScript($dir, json_encode(['message' => 'SQLSTATE error: Some failure'], JSON_THROW_ON_ERROR));
+
+        $status = getMigrationsStatus($dir);
+
+        $this->assertTrue($status['error']);
+        $this->assertStringContainsString('SQLSTATE error', $status['html']);
+    }
+
+    public function testGetMigrationsStatusExtractsInnerMessageFromJson(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $dir = $this->createTempDirectory();
+        mkdir($dir.'/migrations', 0o755, true);
+        file_put_contents($dir.'/migrations/Version1.php', '<?php');
+        $this->createConsoleScript($dir, json_encode(['message' => 'Wrapped: Message: "Inner detail"'], JSON_THROW_ON_ERROR));
+
+        $status = getMigrationsStatus($dir);
+
+        $this->assertTrue($status['error']);
+        $this->assertStringContainsString('Inner detail', $status['html']);
+    }
+
+    public function testGetMigrationsStatusDetectsConnectionRefusedInJson(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $dir = $this->createTempDirectory();
+        mkdir($dir.'/migrations', 0o755, true);
+        file_put_contents($dir.'/migrations/Version1.php', '<?php');
+        $this->createConsoleScript($dir, json_encode(['message' => 'Connection refused'], JSON_THROW_ON_ERROR));
+
+        $status = getMigrationsStatus($dir);
+
+        $this->assertArrayHasKey('no_db', $status);
+        $this->assertFalse($status['error']);
+    }
+
+    public function testGetMigrationsStatusHandlesPlainTextError(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $dir = $this->createTempDirectory();
+        mkdir($dir.'/migrations', 0o755, true);
+        file_put_contents($dir.'/migrations/Version1.php', '<?php');
+        $this->createConsoleScript($dir, "Some error happened\nMore lines\nEven more");
+
+        $status = getMigrationsStatus($dir);
+
+        $this->assertTrue($status['error']);
+        $this->assertStringContainsString('Some error happened', $status['html']);
+    }
+
+    public function testGetMigrationsStatusDetectsConnectionRefusedInPlainText(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $dir = $this->createTempDirectory();
+        mkdir($dir.'/migrations', 0o755, true);
+        file_put_contents($dir.'/migrations/Version1.php', '<?php');
+        $this->createConsoleScript($dir, "Doctrine\\DBAL\\ExceptionConverter.php: Connection refused");
+
+        $status = getMigrationsStatus($dir);
+
+        $this->assertArrayHasKey('no_db', $status);
+        $this->assertFalse($status['error']);
+    }
+
+    public function testGetMigrationsStatusFallsBackToEmptyOutput(): void
+    {
+        $GLOBALS['lang'] = require __DIR__.'/../src/lang/en.php';
+        $dir = $this->createTempDirectory();
+        mkdir($dir.'/migrations', 0o755, true);
+        file_put_contents($dir.'/migrations/Version1.php', '<?php');
+        $this->createConsoleScript($dir, '');
+
+        $status = getMigrationsStatus($dir);
+
+        $this->assertTrue($status['error']);
     }
 
     public function testRenderPageIncludesEnvironmentDashboardContent(): void

@@ -8,7 +8,6 @@ declare(strict_types=1);
  */
 function resolveInstallerVersion(array $config, array $tags): string
 {
-    /** @var string $configured */
     $configured = '';
     if (isset($config['installer_version']) && is_scalar($config['installer_version'])) {
         $configured = trim((string) $config['installer_version']);
@@ -17,14 +16,19 @@ function resolveInstallerVersion(array $config, array $tags): string
         return selfAppendInstallerCommit($configured, $config);
     }
 
-    $composerVersion = resolveComposerPackageVersion(dirname(__DIR__, 2).'/composer.json');
-    if ('' !== $composerVersion) {
-        return $composerVersion;
-    }
+    $composerVersion = resolveComposerPackageVersion(resolveInstallerComposerJsonPath());
 
-    return 'unknown';
+    return '' !== $composerVersion ? $composerVersion : 'unknown';
 }
 
+function resolveInstallerComposerJsonPath(): string
+{
+    return dirname(__DIR__, 2).'/composer.json';
+}
+
+/**
+ * @param array<string, mixed> $config
+ */
 function selfAppendInstallerCommit(string $version, array $config): string
 {
     // If version is a semver tag, return as-is
@@ -130,7 +134,7 @@ function updateUpdaterFromTag(
             throw new RuntimeException('Failed to open update ZIP');
         }
 
-        $tempExtractDir = sys_get_temp_dir().'/updater_self_'.uniqid();
+        $tempExtractDir = rtrim($destinationDir, '/').'/.updater_self_'.uniqid();
         if (!\Oak\Engine\Installer\createDirectoryTree($tempExtractDir, 0o755)) {
             throw new RuntimeException('Temp update directory cannot be created: '.$tempExtractDir);
         }
@@ -158,26 +162,12 @@ function updateUpdaterFromTag(
         );
 
         foreach ($iterator as $item) {
-            if (!$item instanceof SplFileInfo) {
-                continue;
-            }
-            $pathname = $item->getPathname();
-            $absolutePath = (is_string($pathname) || is_int($pathname)) ? (string) $pathname : '';
-            if ('' === $absolutePath) {
-                continue;
-            }
-            if ($item->isDir()) {
-                continue;
-            }
+            \assert($item instanceof SplFileInfo);
+            $absolutePath = $item->getPathname();
 
             $relativePath = normalizeRelativePath(substr($absolutePath, strlen($sourceDir) + 1));
 
             if (!isAllowedUpdaterFile($relativePath)) {
-                $skippedFiles[] = $relativePath;
-                continue;
-            }
-
-            if (str_contains($relativePath, '..')) {
                 $skippedFiles[] = $relativePath;
                 continue;
             }

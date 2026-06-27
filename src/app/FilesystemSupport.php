@@ -19,9 +19,7 @@ function getDirectorySize(string $directory): int
             RecursiveIteratorIterator::LEAVES_ONLY
         );
         foreach ($iterator as $item) {
-            if (!$item instanceof SplFileInfo) {
-                continue;
-            }
+            \assert($item instanceof SplFileInfo);
             if ($item->isFile()) {
                 $size = $item->getSize();
                 if (is_int($size) && $size > 0) {
@@ -69,30 +67,24 @@ function clearCacheDirectory(string $cacheDir): array
         return $result;
     }
 
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($cacheDir, RecursiveDirectoryIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::CHILD_FIRST
-    );
+    try {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($cacheDir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
 
-    foreach ($iterator as $item) {
-        if (!$item instanceof SplFileInfo) {
-            continue;
-        }
-        $pathname = $item->getPathname();
-        $path = (is_string($pathname) || is_int($pathname)) ? (string) $pathname : '';
-        if ('' === $path) {
-            continue;
-        }
-        try {
+        foreach ($iterator as $item) {
+            \assert($item instanceof SplFileInfo);
+            $path = $item->getPathname();
             if ($item->isDir()) {
                 @rmdir($path);
             } else {
                 @unlink($path);
                 ++$result['deleted_count'];
             }
-        } catch (Exception $e) {
-            $result['errors'][] = $path.': '.$e->getMessage();
         }
+    } catch (Exception $e) {
+        $result['errors'][] = $cacheDir.': '.$e->getMessage();
     }
 
     @rmdir($cacheDir);
@@ -136,14 +128,8 @@ function cleanTargetDirectory(string $targetDir): array
     );
 
     foreach ($iterator as $item) {
-        if (!$item instanceof SplFileInfo) {
-            continue;
-        }
-        $pathname = $item->getPathname();
-        $path = (is_string($pathname) || is_int($pathname)) ? (string) $pathname : '';
-        if ('' === $path) {
-            continue;
-        }
+        \assert($item instanceof SplFileInfo);
+        $path = $item->getPathname();
 
         $shouldPreserve = false;
         foreach ($preservePaths as $preservePath) {
@@ -183,7 +169,7 @@ function extractZip(string $zipContent, string $targetDir, array $excludeFolders
         if (true !== $zip->open($tempFile)) {
             throw new RuntimeException('Failed to open ZIP');
         }
-        $tempExtractDir = sys_get_temp_dir().'/oak_installer_'.uniqid();
+        $tempExtractDir = rtrim($targetDir, '/').'/.oak_installer_'.uniqid();
         if (!\Oak\Engine\Installer\createDirectoryTree($tempExtractDir, 0o755)) {
             throw new RuntimeException('Temp extract directory cannot be created: '.$tempExtractDir);
         }
@@ -204,14 +190,8 @@ function extractZip(string $zipContent, string $targetDir, array $excludeFolders
         );
 
         foreach ($iterator as $item) {
-            if (!$item instanceof SplFileInfo) {
-                continue;
-            }
-            $pathname = $item->getPathname();
-            $absolutePath = (is_string($pathname) || is_int($pathname)) ? (string) $pathname : '';
-            if ('' === $absolutePath) {
-                continue;
-            }
+            \assert($item instanceof SplFileInfo);
+            $absolutePath = $item->getPathname();
             $relativePath = substr($absolutePath, strlen($sourceDir) + 1);
             $relativePathNormalized = str_replace('\\', '/', $relativePath);
             $parentDir = dirname($relativePathNormalized);
@@ -256,12 +236,6 @@ function extractZip(string $zipContent, string $targetDir, array $excludeFolders
             }
 
             $targetPath = rtrim($targetDir, '/').'/'.$relativePath;
-            $targetDirPath = dirname($targetPath);
-            if (!is_dir($targetDirPath)) {
-                if (!\Oak\Engine\Installer\createDirectoryTree($targetDirPath, 0o755)) {
-                    throw new RuntimeException('Target directory cannot be created: '.$targetDirPath);
-                }
-            }
             copy($item->getPathname(), $targetPath);
             $extractedFiles[] = $relativePath;
         }
@@ -282,9 +256,7 @@ function recursiveDelete(string $path): void
             RecursiveIteratorIterator::CHILD_FIRST
         );
         foreach ($iterator as $item) {
-            if (!$item instanceof SplFileInfo) {
-                continue;
-            }
+            \assert($item instanceof SplFileInfo);
             if ($item->isDir()) {
                 rmdir($item->getPathname());
             } else {
