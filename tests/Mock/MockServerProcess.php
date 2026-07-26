@@ -193,7 +193,7 @@ final class MockServerProcess
 
         $body = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        unset($ch);
 
         $decoded = is_string($body) && '' !== $body ? json_decode($body, true) : null;
 
@@ -230,7 +230,7 @@ final class MockServerProcess
             ]);
             curl_exec($ch);
             $errno = curl_errno($ch);
-            curl_close($ch);
+            unset($ch);
             if (0 === $errno) {
                 return;
             }

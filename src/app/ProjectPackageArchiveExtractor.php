@@ -100,16 +100,130 @@ final readonly class ProjectPackageArchiveExtractor
         $extractionDirectory = $tempDirectory.'/extract';
         createDirectoryTree($extractionDirectory, 0o755);
 
+        $tarFile = preg_replace('/\.gz$/i', '', $gzFile);
+        if (is_string($tarFile)) {
+            $validation = $this->validateTarArchiveForPathTraversal($gzFile);
+            if ([] !== $validation) {
+                throw new \RuntimeException('Tar archive contains unsafe paths (Tar Slip): '.implode(', ', $validation));
+            }
+        }
+
         $this->streamExtractGzTar($gzFile, $extractionDirectory);
 
         $sourceDirectory = $this->resolveSourceDirectory($extractionDirectory);
 
+        $resolvedSourceDirectory = realpath($sourceDirectory);
+        if (false === $resolvedSourceDirectory || !str_starts_with($resolvedSourceDirectory, realpath($extractionDirectory) ?: '')) {
+            throw new \RuntimeException('Tar archive resolved source directory escapes temp dir: '.$sourceDirectory);
+        }
+
         return $this->copyExtractedDirectory(
-            $sourceDirectory,
+            $resolvedSourceDirectory,
             $targetDir,
             $excludeFolders,
             $excludeFiles,
         );
+    }
+
+    /**
+     * Returns a list of unsafe entry names found in the tar archive.
+     * Empty list means all entries are safe.
+     *
+     * @return list<string>
+     */
+    private function validateTarArchiveForPathTraversal(string $gzFile): array
+    {
+        $tarBinary = $this->resolveTarBinary();
+
+        if (null !== $tarBinary) {
+            $absoluteArchive = realpath($gzFile);
+            if (false === $absoluteArchive) {
+                throw new \RuntimeException(sprintf('Package archive "%s" does not exist.', $gzFile));
+            }
+
+            $process = proc_open(
+                [$tarBinary, '--list', '--file='.$absoluteArchive],
+                [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+                $pipes
+            );
+            \assert(is_resource($process));
+            $output = stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            proc_close($process);
+
+            if (!is_string($output)) {
+                throw new \RuntimeException('Failed to list tar archive contents.');
+            }
+
+            $unsafe = [];
+            foreach (preg_split('/\r\n|\r|\n/', $output) ?: [] as $line) {
+                $line = trim($line);
+                if ('' === $line) {
+                    continue;
+                }
+                if (!isTarEntryPathSafe($line)) {
+                    $unsafe[] = $line;
+                }
+            }
+
+            return $unsafe;
+        }
+
+        if (!class_exists(\PharData::class)) {
+            throw new \RuntimeException('Cannot validate tar entries: neither tar binary nor PharData is available.');
+        }
+
+        $validationGzFile = $this->copyForPharValidation($gzFile);
+
+        $unsafe = [];
+        $tarFile = preg_replace('/\.gz$/i', '', $validationGzFile);
+        if (!is_string($tarFile)) {
+            $tarFile = $validationGzFile;
+        }
+
+        try {
+            $phar = new \PharData($validationGzFile);
+            $phar->decompress();
+
+            if (is_file($tarFile)) {
+                $archive = new \PharData($tarFile);
+                foreach (new \RecursiveIteratorIterator($archive) as $entry) {
+                    $entryName = $entry->getFilename();
+                    if (!is_string($entryName) || '' === $entryName) {
+                        continue;
+                    }
+                    if (!isTarEntryPathSafe($entryName)) {
+                        $unsafe[] = $entryName;
+                    }
+                }
+            }
+        } finally {
+            if (is_file($tarFile)) {
+                @unlink($tarFile);
+            }
+            if (is_file($validationGzFile) && $validationGzFile !== $gzFile) {
+                @unlink($validationGzFile);
+            }
+        }
+
+        return $unsafe;
+    }
+
+    /**
+     * Copies the gz archive to a unique temp location to avoid Phar's
+     * basename-based cache collisions during validation.
+     */
+    private function copyForPharValidation(string $gzFile): string
+    {
+        $uniqueBase = $this->resolveTempBase().'/validation_'.bin2hex(random_bytes(8));
+        $newGzFile = $uniqueBase.'.tar.gz';
+
+        if (!@copy($gzFile, $newGzFile)) {
+            throw new \RuntimeException(sprintf('Failed to copy archive for validation: %s', $gzFile));
+        }
+
+        return $newGzFile;
     }
 
     private function resolveTempBase(): string
@@ -233,16 +347,40 @@ final readonly class ProjectPackageArchiveExtractor
         $skippedFiles = [];
         $skippedFolders = [];
 
+        $resolvedSourceDir = realpath($sourceDir);
+        if (false === $resolvedSourceDir) {
+            throw new \RuntimeException(sprintf('Cannot resolve source directory: %s', $sourceDir));
+        }
+        $resolvedTargetDir = realpath($targetDir);
+        if (false === $resolvedTargetDir) {
+            if (!createDirectoryTree($targetDir, 0o755)) {
+                throw new \RuntimeException(sprintf('Unable to create target directory "%s".', $targetDir));
+            }
+            $resolvedTargetDir = realpath($targetDir);
+            if (false === $resolvedTargetDir) {
+                throw new \RuntimeException(sprintf('Cannot resolve target directory: %s', $targetDir));
+            }
+        }
+
         $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($sourceDir, \FilesystemIterator::SKIP_DOTS),
+            new \RecursiveDirectoryIterator($resolvedSourceDir, \FilesystemIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::SELF_FIRST,
         );
 
         foreach ($iterator as $item) {
             \assert($item instanceof \SplFileInfo);
 
+            if ($item->isLink()) {
+                continue;
+            }
+
             $absolutePath = $item->getPathname();
-            $relativePath = substr($absolutePath, strlen($sourceDir) + 1);
+            $realPath = realpath($absolutePath);
+            if (false === $realPath || !str_starts_with($realPath, $resolvedSourceDir)) {
+                continue;
+            }
+
+            $relativePath = substr($realPath, strlen($resolvedSourceDir) + 1);
             $relativePathNormalized = str_replace('\\', '/', (string) $relativePath);
             $parentDir = dirname($relativePathNormalized);
             if ('.' === $parentDir) {
@@ -258,7 +396,10 @@ final readonly class ProjectPackageArchiveExtractor
                     }
                 }
 
-                $targetPath = rtrim($targetDir, '/').'/'.$relativePath;
+                $targetPath = $resolvedTargetDir.'/'.$relativePath;
+                if (!str_starts_with($targetPath, $resolvedTargetDir.'/')) {
+                    continue;
+                }
                 if (!is_dir($targetPath)) {
                     if (!createDirectoryTree($targetPath, 0o755)) {
                         throw new \RuntimeException(sprintf('Unable to create directory "%s".', $targetPath));
@@ -287,7 +428,12 @@ final readonly class ProjectPackageArchiveExtractor
                 }
             }
 
-            $targetPath = rtrim($targetDir, '/').'/'.$relativePath;
+            $targetPath = $resolvedTargetDir.'/'.$relativePath;
+            if (!str_starts_with($targetPath, $resolvedTargetDir.'/')) {
+                $skippedFiles[] = $relativePath;
+                continue;
+            }
+
             $targetDirectoryPath = dirname($targetPath);
             if (!is_dir($targetDirectoryPath)) {
                 if (!createDirectoryTree($targetDirectoryPath, 0o755)) {
@@ -301,8 +447,8 @@ final readonly class ProjectPackageArchiveExtractor
                 @chmod($targetPath, 0o644);
             }
 
-            if (!@copy($absolutePath, $targetPath)) {
-                throw new \RuntimeException(sprintf('Unable to copy "%s" to "%s".', $absolutePath, $targetPath));
+            if (!@copy($realPath, $targetPath)) {
+                throw new \RuntimeException(sprintf('Unable to copy "%s" to "%s".', $realPath, $targetPath));
             }
 
             $extractedFiles[] = $relativePath;

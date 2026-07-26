@@ -996,7 +996,7 @@ final class IndexFunctionsTest extends TestCase
         $cacheFile = (function () use ($client) {
             $reflection = new \ReflectionClass($client);
             $method = $reflection->getMethod('getCacheFile');
-            $method->setAccessible(true);
+            
 
             return $method->invoke($client);
         })();
@@ -1037,7 +1037,7 @@ final class IndexFunctionsTest extends TestCase
         $cacheFile = (function () use ($client) {
             $reflection = new \ReflectionClass($client);
             $method = $reflection->getMethod('getCacheFile');
-            $method->setAccessible(true);
+            
 
             return $method->invoke($client);
         })();
@@ -1061,7 +1061,7 @@ final class IndexFunctionsTest extends TestCase
         $cacheFile = (function () use ($client) {
             $reflection = new \ReflectionClass($client);
             $method = $reflection->getMethod('getCacheFile');
-            $method->setAccessible(true);
+            
 
             return $method->invoke($client);
         })();
@@ -1666,7 +1666,7 @@ final class IndexFunctionsTest extends TestCase
     public function testUpdateUpdaterFromTagThrowsWhenZipInvalid(): void
     {
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Failed to open update ZIP');
+        $this->expectExceptionMessageMatches('/Failed to open ZIP/i');
 
         updateUpdaterFromTag(new FakeGitHubClient('not-a-zip'), 'oakengine/installer', 'v1.0.0', 'src', $this->createTempDirectory());
     }
@@ -1682,7 +1682,7 @@ final class IndexFunctionsTest extends TestCase
         $zipContent = (string) file_get_contents($zipPath);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('No directory in update archive');
+        $this->expectExceptionMessageMatches('/top-level directory|Updater source path not found in archive/i');
 
         updateUpdaterFromTag(new FakeGitHubClient($zipContent), 'oakengine/installer', 'v1.0.0', 'src', $this->createTempDirectory());
     }

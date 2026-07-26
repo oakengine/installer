@@ -197,16 +197,15 @@ final readonly class ProjectPackageApiClient
 
         $executed = curl_exec($ch);
         fclose($handle);
-        curl_close($ch);
 
         if (false === $executed) {
-            $error = curl_error($ch);
             @unlink($tempFile);
 
-            throw new \RuntimeException('Package download failed: '.$error);
+            throw new \RuntimeException('Package download failed: curl_exec returned false');
         }
 
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        unset($ch);
 
         if (200 !== $httpCode) {
             @unlink($tempFile);
@@ -241,14 +240,11 @@ final readonly class ProjectPackageApiClient
 
         $response = curl_exec($ch);
         if (false === $response) {
-            $error = curl_error($ch);
-            curl_close($ch);
-
-            throw new \RuntimeException(sprintf('Project package API request failed: %s', $error));
+            throw new \RuntimeException('Project package API request failed: curl_exec returned false');
         }
 
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        unset($ch);
 
         if ($httpCode >= 400) {
             throw new \RuntimeException(sprintf('Project package API returned HTTP %d.', $httpCode));

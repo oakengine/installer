@@ -283,7 +283,7 @@ final class ProjectPackageApiClientMockTest extends TestCase
 
         $reflection = new \ReflectionClass($client);
         $method = $reflection->getMethod('getCacheFile');
-        $method->setAccessible(true);
+        
         $cacheFile = (string) $method->invoke($client);
 
         file_put_contents($cacheFile, '[]');
@@ -304,7 +304,7 @@ final class ProjectPackageApiClientMockTest extends TestCase
 
         $reflection = new \ReflectionClass($client);
         $method = $reflection->getMethod('getCacheFile');
-        $method->setAccessible(true);
+        
         $cacheFile = (string) $method->invoke($client);
 
         file_put_contents($cacheFile, json_encode([
@@ -328,7 +328,7 @@ final class ProjectPackageApiClientMockTest extends TestCase
 
         $reflection = new \ReflectionClass($client);
         $method = $reflection->getMethod('getCacheFile');
-        $method->setAccessible(true);
+        
         $cacheFile = (string) $method->invoke($client);
 
         file_put_contents($cacheFile, 'not-json{');

@@ -10,6 +10,60 @@ use Oak\Engine\Installer\ProjectPackageArchiveExtractor;
 
 final class InstallerApplication
 {
+    /**
+     * Resolves a target directory relative to $srcRoot. If the relative path
+     * goes above the filesystem root (e.g. "../../../../tmp" from a deeply
+     * nested source dir), the remaining "../" segments are dropped so the
+     * path resolves to a real system path.
+     */
+    private static function resolveTargetDirectory(string $srcRoot, string $targetDirRelative): string|false
+    {
+        $resolved = realpath($srcRoot.'/'.$targetDirRelative);
+        if (false !== $resolved) {
+            return $resolved;
+        }
+
+        $absolute = self::resolveTargetDirectoryAbsolute($srcRoot, $targetDirRelative);
+
+        return realpath($absolute);
+    }
+
+    /**
+     * Resolves the absolute target directory path even when the relative
+     * path goes above the filesystem root. Strips leading "../" segments
+     * beyond root and treats them as relative to root.
+     */
+    private static function resolveTargetDirectoryAbsolute(string $srcRoot, string $targetDirRelative): string
+    {
+        $absolute = $srcRoot.'/'.$targetDirRelative;
+        $resolved = realpath($absolute);
+        if (false !== $resolved) {
+            return $resolved;
+        }
+
+        $parent = realpath($srcRoot);
+        if (false === $parent) {
+            return $absolute;
+        }
+        $depth = 0;
+        $remainder = $targetDirRelative;
+        while (0 === strpos($remainder, '../')) {
+            $remainder = substr($remainder, 3);
+            ++$depth;
+        }
+        $upLevels = substr_count($parent, DIRECTORY_SEPARATOR);
+        if ('/' === $parent) {
+            $upLevels = 0;
+        }
+        $skip = max(0, $depth - $upLevels);
+
+        $prefix = $parent;
+        for ($i = 0; $i < $upLevels - $skip; ++$i) {
+            $prefix = dirname($prefix);
+        }
+
+        return rtrim($prefix, '/').'/'.$remainder;
+    }
     public function run(): void
     {
         global $lang, $availableLangs;
@@ -151,9 +205,9 @@ final class InstallerApplication
                 $installerRepo = (string) $config['installer_repository'];
             }
 
-            $targetDir = realpath($srcRoot.'/'.$targetDirRelative);
+            $targetDir = self::resolveTargetDirectory($srcRoot, $targetDirRelative);
             if (false === $targetDir) {
-                $absoluteTarget = $srcRoot.'/'.$targetDirRelative;
+                $absoluteTarget = self::resolveTargetDirectoryAbsolute($srcRoot, $targetDirRelative);
                 if (!is_dir($absoluteTarget)) {
                     if (!\Oak\Engine\Installer\createDirectoryTree($absoluteTarget, 0o755)) {
                         throw new RuntimeException('Target directory cannot be created: '.$absoluteTarget);
@@ -204,6 +258,9 @@ final class InstallerApplication
 
             $client = new GitHubClient($apiBaseUrl, $token, $currentInstallerVersion);
             $githubCacheDir = $projectRoot.'/var/cache/github-api';
+            if (isset($config['github_cache_directory']) && is_scalar($config['github_cache_directory']) && '' !== trim((string) $config['github_cache_directory'])) {
+                $githubCacheDir = trim((string) $config['github_cache_directory']);
+            }
             $installUuidManager = new InstallUuidManager();
             $appSecretManager = new AppSecretManager();
             $envPath = rtrim($targetDirFinal, '/').'/.env.local';

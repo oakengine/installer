@@ -186,10 +186,11 @@ final class InstallerApplicationTest extends TestCase
         $baseUrl = $this->mockServer()->getBaseUrl();
         $repo = 'oak/test';
 
-        $githubCacheDir = '/app/var/cache/github-api';
+        $githubCacheDir = sys_get_temp_dir().'/installer_github_cache_'.uniqid('', true);
+        $this->pathsToDelete[] = $githubCacheDir;
+        @mkdir($githubCacheDir, 0o755, true);
         $cacheFile = $githubCacheDir.'/github-repository-refs-'.sha1($repo).'.php';
 
-        @mkdir($githubCacheDir, 0o755, true);
         file_put_contents($cacheFile, "<?php\n\ndeclare(strict_types=1);\n\nreturn ".var_export([
             'tags' => [
                 ['name' => 'v1.0.0', 'commit' => 'abc123'],
@@ -207,7 +208,9 @@ final class InstallerApplicationTest extends TestCase
         );
         $this->mockServer()->addArchive('v1.0.0', $archiveContent);
 
-        $srcDir = '/app/src';
+        $srcDir = sys_get_temp_dir().'/installer_src_'.uniqid('', true);
+        $this->pathsToDelete[] = $srcDir;
+        @mkdir($srcDir.'/app', 0o755, true);
         $restoreFiles = [];
         $existingFiles = [
             $srcDir.'/app/file.php' => '<?php // old',
@@ -215,14 +218,18 @@ final class InstallerApplicationTest extends TestCase
         foreach ($existingFiles as $path => $content) {
             if (file_exists($path)) {
                 $restoreFiles[$path] = (string) file_get_contents($path);
-            } else {
-                @mkdir(dirname($path), 0o755, true);
             }
             file_put_contents($path, $content);
         }
 
         $result = $this->runInstaller(
-            ['api_base_url' => $baseUrl, 'github_token' => 'test-token', 'installer_repository' => $repo],
+            [
+                'api_base_url' => $baseUrl,
+                'github_token' => 'test-token',
+                'installer_repository' => $repo,
+                'github_cache_directory' => $githubCacheDir,
+                'updater_source_path' => 'package-root/src',
+            ],
             requestMethod: 'POST',
             get: ['view' => 'installer'],
             post: [
@@ -498,9 +505,11 @@ final class InstallerApplicationTest extends TestCase
 
         $targetDir = $this->createTempDirectory();
         file_put_contents($targetDir.'/.env.local', "APP_ENV=prod\nINSTALL_UUID=018f5e91-16a3-7f41-8d6a-8f4d5b4ec2f1\nAPP_SECRET=690b81936a56c725cedc2a32a67b5b56\nDATABASE_URL=\"mysql://u:p@h/db1\" # DB1\n");
-        $githubCacheDir = '/app/var/cache/github-api';
-        $cacheFile = $githubCacheDir.'/github-repository-refs-'.sha1('oak/test').'.php';
+
+        $githubCacheDir = sys_get_temp_dir().'/installer_github_cache_'.uniqid('', true);
+        $this->pathsToDelete[] = $githubCacheDir;
         @mkdir($githubCacheDir, 0o755, true);
+        $cacheFile = $githubCacheDir.'/github-repository-refs-'.sha1('oak/test').'.php';
         file_put_contents($cacheFile, "<?php\n\ndeclare(strict_types=1);\n\nreturn ".var_export([
             'tags' => [['name' => 'v1.0.0', 'commit' => 'abc123']],
             'branches' => [['name' => 'main', 'commit' => 'def456']],
@@ -514,7 +523,13 @@ final class InstallerApplicationTest extends TestCase
         $relativeTargetDir = '../../../../'.$targetDir;
 
         $result = $this->runInstaller(
-            ['project_api_url' => $baseUrl, 'target_directory' => $relativeTargetDir, 'installer_repository' => 'oak/test', 'updater_source_path' => 'custom'],
+            [
+                'project_api_url' => $baseUrl,
+                'target_directory' => $relativeTargetDir,
+                'installer_repository' => 'oak/test',
+                'updater_source_path' => 'custom',
+                'github_cache_directory' => $githubCacheDir,
+            ],
             requestMethod: 'POST',
             get: ['view' => 'updates'],
             post: ['self_update' => '1', 'ref' => 'v1.0.0', 'ref_commit' => 'abc123']

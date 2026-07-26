@@ -432,7 +432,7 @@ PHP;
         );
 
         $streamMethod = new \ReflectionMethod($extractor, 'streamExtractGzTarWithPhar');
-        $streamMethod->setAccessible(true);
+        
         $streamMethod->invoke($extractor, $gzFile, $extractionDirectory);
 
         $this->assertFileExists($extractionDirectory.'/package-root/file.txt');
@@ -444,7 +444,7 @@ PHP;
         $extractor = new ProjectPackageArchiveExtractor();
 
         $streamMethod = new \ReflectionMethod($extractor, 'streamExtractGzTarWithBinary');
-        $streamMethod->setAccessible(true);
+        
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('does not exist');
@@ -468,7 +468,7 @@ PHP;
         file_put_contents($gzFile, 'not a valid gz file');
 
         $streamMethod = new \ReflectionMethod($extractor, 'streamExtractGzTarWithBinary');
-        $streamMethod->setAccessible(true);
+        
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Failed to extract package archive');
@@ -480,7 +480,7 @@ PHP;
     {
         $extractor = new ProjectPackageArchiveExtractor();
         $method = new \ReflectionMethod($extractor, 'recursiveDelete');
-        $method->setAccessible(true);
+        
 
         $method->invoke($extractor, '/nonexistent-'.uniqid('', true));
 
@@ -491,7 +491,7 @@ PHP;
     {
         $extractor = new ProjectPackageArchiveExtractor();
         $method = new \ReflectionMethod($extractor, 'recursiveDelete');
-        $method->setAccessible(true);
+        
 
         $file = $this->createTempDirectory().'/file-to-delete.txt';
         file_put_contents($file, 'data');
@@ -506,7 +506,7 @@ PHP;
     {
         $extractor = new ProjectPackageArchiveExtractor();
         $method = new \ReflectionMethod($extractor, 'resolveSourceDirectory');
-        $method->setAccessible(true);
+        
 
         $directory = $this->createTempDirectory();
         $this->assertSame($directory, $method->invoke($extractor, $directory));
@@ -521,7 +521,7 @@ PHP;
         file_put_contents($gzFile, 'not a valid gz file - no phar header');
 
         $streamMethod = new \ReflectionMethod($extractor, 'streamExtractGzTarWithPhar');
-        $streamMethod->setAccessible(true);
+        
 
         $this->expectException(\Throwable::class);
 
@@ -541,7 +541,7 @@ PHP;
         file_put_contents($blocker, 'blocker');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to create directory');
+        $this->expectExceptionMessageMatches('/Unable to create (target )?directory/i');
 
         $extractor->extractTarGz(
             $this->createTarGzArchive([

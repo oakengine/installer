@@ -14,6 +14,7 @@ namespace Oak\Engine\Installer {
 namespace {
     require_once __DIR__.'/app/GitHubClient.php';
     require_once __DIR__.'/app/PackageSupport.php';
+    require_once __DIR__.'/app/ZipSecurity.php';
     require_once __DIR__.'/app/HtmlRenderer.php';
     require_once __DIR__.'/app/InstallerUpdater.php';
     require_once __DIR__.'/app/GitHubRefsCache.php';

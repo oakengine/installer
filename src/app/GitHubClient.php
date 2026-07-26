@@ -99,7 +99,7 @@ class GitHubClient
         ]);
         $body = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        $this->releaseCurlHandle($ch);
 
         if (403 === $httpCode && '' !== $this->token) {
             $headers = ['User-Agent: '.$this->userAgent];
@@ -113,10 +113,21 @@ class GitHubClient
             ]);
             $body = curl_exec($ch);
             $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            $this->releaseCurlHandle($ch);
         }
 
         return ['httpCode' => $httpCode, 'body' => is_string($body) ? $body : ''];
+    }
+
+    /**
+     * Releases a curl handle. Since PHP 8.0, curl handles are released
+     * automatically and curl_close() is a no-op that triggers a
+     * deprecation warning in PHP 8.5+. This wrapper exists so we have
+     * a single place to handle the transition.
+     */
+    private function releaseCurlHandle(\CurlHandle $ch): void
+    {
+        unset($ch);
     }
 
     /**
