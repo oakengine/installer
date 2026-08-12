@@ -9,3 +9,4 @@
 /vendor-bin/*/vendor/
 /.playwright-mcp/
 /src/config.php
+/.env.local
