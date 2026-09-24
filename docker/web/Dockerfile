@@ -1,4 +1,4 @@
-FROM webdevops/php-apache-dev:8.2
+FROM webdevops/php-apache-dev:8.5
 
 # Update and install
 RUN apt-get update
