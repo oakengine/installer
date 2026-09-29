@@ -313,6 +313,7 @@ function syncPackageEnvToEnvLocalDetailed(string $envPath, array $composerMetada
         'default-language' => 'OAK_DEFAULT_LANGUAGE',
         'available-languages' => 'OAK_AVAILABLE_LANGUAGES',
         'default-language-redirect' => 'OAK_DEFAULT_LANGUAGE_REDIRECT',
+        'language-domains' => 'OAK_LANGUAGE_DOMAINS',
     ];
 
     /** @var array<string, string> $linesToAppend */
