@@ -1155,12 +1155,12 @@ HTML;
     .brand-mark svg { width: 100%; height: 100%; display: block; }
     .brand-mark svg #oakengine-logo-1,
     .brand-mark svg #oakengine-logo-3,
-    .brand-mark svg #oakengine-logo-5 { fill: var(--brand); }
+    .brand-mark svg #oakengine-logo-5 { fill: #000; }
     .brand-mark svg #oakengine-logo-2,
     .brand-mark svg #oakengine-logo-4,
-    .brand-mark svg #oakengine-logo-6 { fill: var(--surface); }
-    .brand-mark svg #oakengine-logo-7 { fill: color-mix(in srgb, var(--brand) 70%, var(--text)); }
-    .brand-mark svg #oakengine-logo-8 { fill: var(--surface); }
+    .brand-mark svg #oakengine-logo-6 { fill: #fff; }
+    .brand-mark svg #oakengine-logo-7 { fill: #4f4f4f; }
+    .brand-mark svg #oakengine-logo-8 { fill: #fff; }
     .brand-mark svg #oakengine-logo-1,
     .brand-mark svg #oakengine-logo-2,
     .brand-mark svg #oakengine-logo-3,
@@ -1568,8 +1568,9 @@ HTML;
     .lang-switcher { margin: 0; }
     .lang-form { display: flex; align-items: center; gap: 6px; }
     .lang-form label { font-size: 0.82rem; color: var(--text-muted); }
-    footer { margin-top: 28px; text-align: center; }
+    footer { margin-top: 1.5rem; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 14px; text-align: center; }
     .footer-link { color: var(--text-soft); text-decoration: none; font-size: 0.82rem; display: inline-flex; align-items: center; gap: 5px; }
+    .footer-link svg { width: 15px; height: 15px; display: block; flex-shrink: 0; }
     .footer-link:hover { color: var(--brand); text-decoration: underline; }
     @media (max-width: 600px) {
         .container { padding: 24px 20px; border-radius: var(--radius); }
@@ -1770,6 +1771,7 @@ HTML;
 </div>
 <footer>
     <a href="https://github.com/oakengine/installer" target="_blank" class="footer-link">{$footerIcon} github.com/oakengine/installer</a>
+    <span class="footer-link"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40.97 40.97" aria-hidden="true"><g transform="translate(-277.5 -400.47)"><path fill="#cd1719" d="M284.76,400.47a7.26,7.26,0,0,0-7.26,7.26v26.46a7.25,7.25,0,0,0,7.26,7.25h26.46a7.25,7.25,0,0,0,7.25-7.25V407.73a7.26,7.26,0,0,0-7.25-7.26H284.76"/><path fill="#ffffff" d="M283.81,408l8.86,8.86a2.88,2.88,0,0,0-.21,1.13v.32h-9v-8.68a3.45,3.45,0,0,1,.37-1.63m-.37,15.59h9v.32a3.16,3.16,0,0,0,.24,1.1l-8.86,8.86a4,4,0,0,1-.4-1.6Zm11.91-5.28h5.27v5.28h-5.27Zm-1.45,8a2.81,2.81,0,0,0,1.13.21h.32v9h-8.69a3.32,3.32,0,0,1-1.62-.37Zm6.72.21H301a3.2,3.2,0,0,0,1.1-.24l8.86,8.86a4.07,4.07,0,0,1-1.6.39h-8.69Zm11.54,7.42-8.86-8.86a2.71,2.71,0,0,0,.22-1.13v-.32h9v8.68a3.33,3.33,0,0,1-.37,1.63m.37-15.59h-9V418a3.16,3.16,0,0,0-.24-1.1l8.85-8.86a4,4,0,0,1,.4,1.6Zm-10.45-2.68a2.88,2.88,0,0,0-1.13-.21h-.33v-9h8.69a3.36,3.36,0,0,1,1.63.37Zm-6.73-.21H295a3.23,3.23,0,0,0-1.11.24l-8.85-8.86a4,4,0,0,1,1.59-.39h8.69ZM281.19,409v9.32h-1.94v5.28h1.94v9.32s0,4.84,4.83,4.84h9.33v1.94h5.27v-1.94H310s4.83,0,4.83-4.84V423.6h1.94v-5.28h-1.94V409s0-4.84-4.83-4.84h-9.33v-1.94h-5.27v1.94H286s-4.83,0-4.83,4.84"/></g></svg>JBS New Media GmbH</span>
 </footer>
 {$confirmationModal}
 {$dropdownScript}
