@@ -410,12 +410,17 @@ function resolveProjectEnvComposerMetadataSources(string $targetDir): array
             $scanDir.'/runner/*/plugin/*/*/composer.json',
             $scanDir.'/runner/*/plugin/*/composer.json',
         ],
+        'data' => [
+            $scanDir.'/data/*/composer.json',
+        ],
     ];
 
     /** @var list<array{path: string, package_type: string, metadata: array<string, mixed>}> $runnerMetadataSources */
     $runnerMetadataSources = [];
     /** @var list<array{path: string, package_type: string, metadata: array<string, mixed>}> $pluginMetadataSources */
     $pluginMetadataSources = [];
+    /** @var list<array{path: string, package_type: string, metadata: array<string, mixed>}> $dataMetadataSources */
+    $dataMetadataSources = [];
 
     if (is_file($rootComposerPath)) {
         $rootMetadata = readComposerJsonMetadata($rootComposerPath);
@@ -459,6 +464,12 @@ function resolveProjectEnvComposerMetadataSources(string $targetDir): array
                     continue;
                 }
 
+                if ('data' === $packageType) {
+                    $dataMetadataSources[$relativePath] = $metadataSource;
+
+                    continue;
+                }
+
                 $pluginMetadataSources[$relativePath] = $metadataSource;
             }
         }
@@ -472,8 +483,12 @@ function resolveProjectEnvComposerMetadataSources(string $targetDir): array
         $pluginMetadataSources,
         static fn (array $left, array $right): int => strcmp($left['path'], $right['path']),
     );
+    usort(
+        $dataMetadataSources,
+        static fn (array $left, array $right): int => strcmp($left['path'], $right['path']),
+    );
 
-    return array_merge($runnerMetadataSources, $pluginMetadataSources);
+    return array_merge($runnerMetadataSources, $pluginMetadataSources, $dataMetadataSources);
 }
 
 /**

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 function resolveDashboardView(mixed $raw): string
 {
-    $allowed = ['home', 'updates', 'environment', 'databases', 'install-uuid', 'installer', 'system'];
+    $allowed = ['home', 'updates', 'environment', 'databases', 'install-uuid', 'installer', 'system', 'setup', 'vis-users'];
     $value = is_string($raw) ? $raw : '';
 
     return in_array($value, $allowed, true) ? $value : 'home';
@@ -244,6 +244,8 @@ function lucideIcon(string $name, int $size = 16): string
     /** @var array<string, string> $map */
     static $map = [
         'home' => '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+        'users' => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+        'key-round' => '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
         'server' => '<rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/>',
         'sparkles' => '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
         'refresh-cw' => '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
@@ -821,10 +823,14 @@ HTML;
         $text_dashboard_home = resolveLangKey('home', $langForTemplate);
         $text_dashboard_installer = resolveLangKey('dashboard_installer', $langForTemplate);
         $text_dashboard_system = resolveLangKey('dashboard_system', $langForTemplate);
+        $text_dashboard_setup = resolveLangKey('setup_nav', $langForTemplate);
+        $text_dashboard_vis_users = resolveLangKey('vis_users_nav', $langForTemplate);
 
         $navItems = [
             ['view' => 'home', 'href' => buildDashboardViewHref('home'), 'label' => $text_dashboard_home, 'icon' => 'home'],
+            ['view' => 'setup', 'href' => buildDashboardViewHref('setup'), 'label' => $text_dashboard_setup, 'icon' => 'sparkles'],
             ['view' => 'updates', 'href' => buildDashboardViewHref('updates'), 'label' => $text_dashboard_updates, 'icon' => 'refresh-cw'],
+            ['view' => 'vis-users', 'href' => buildDashboardViewHref('vis-users'), 'label' => $text_dashboard_vis_users, 'icon' => 'users'],
             ['view' => 'environment', 'href' => buildDashboardViewHref('environment'), 'label' => $text_dashboard_environment, 'icon' => 'settings'],
             ['view' => 'databases', 'href' => buildDashboardViewHref('databases'), 'label' => $text_dashboard_databases, 'icon' => 'database'],
             ['view' => 'install-uuid', 'href' => buildDashboardViewHref('install-uuid'), 'label' => $text_dashboard_install_uuid, 'icon' => 'fingerprint'],
@@ -1450,6 +1456,25 @@ HTML;
     .branch-list li:hover, .tag-list li:hover { background: var(--surface-muted); }
     .branch-name, .tag-name { font-family: var(--font-mono); color: var(--brand); font-weight: 600; font-size: 0.92rem; }
     .commit-sha { font-family: var(--font-mono); font-size: 0.82em; color: var(--text-soft); margin-left: 10px; }
+
+    /* vis users */
+    .vis-user-list li { flex-wrap: wrap; }
+    .vis-user-row .ref-item-info { min-width: 220px; }
+    .vis-user-roles { display: flex; flex-wrap: wrap; gap: 4px; max-width: 360px; }
+    .vis-user-roles .chip { font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; background: var(--surface-muted); border: 1px solid var(--border); color: var(--text-soft); font-family: var(--font-mono); }
+    .vis-user-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+    .vis-user-details summary { cursor: pointer; font-size: 0.8rem; color: var(--text-soft); white-space: nowrap; }
+    .vis-user-details summary:hover { color: var(--text); }
+    .vis-inline-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 0; }
+    .vis-inline-form input[type="password"], .vis-inline-form input[type="email"] {
+        background: var(--surface-inset); border: 1px solid var(--border); color: var(--text);
+        border-radius: 8px; padding: 7px 10px; font-size: 0.85rem;
+    }
+    .vis-role-list { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 6px 0; }
+    .vis-role-checkbox { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; font-family: var(--font-mono); color: var(--text-soft); }
+    .vis-role-list-create { padding: 4px 0 10px; }
+    .vis-create-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--text-soft); margin-bottom: 8px; }
+    .vis-create-form input { background: var(--surface-inset); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 0.88rem; }
     .btn {
         background: var(--accent);
         color: #fff;

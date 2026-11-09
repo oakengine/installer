@@ -21,6 +21,9 @@ namespace {
     require_once __DIR__.'/app/Authenticator.php';
     require_once __DIR__.'/app/FilesystemSupport.php';
     require_once __DIR__.'/app/EnvLocalManager.php';
+    require_once __DIR__.'/app/PackageInstallationRunner.php';
+    require_once __DIR__.'/app/VisUsersManager.php';
+    require_once __DIR__.'/app/SetupViews.php';
     require_once __DIR__.'/app/MigrationStatus.php';
     require_once __DIR__.'/app/Translation.php';
     require_once __DIR__.'/app/InstallerApplication.php';

@@ -1639,6 +1639,21 @@ final class InstallerApplicationTest extends TestCase
         $this->assertStringContainsString('OakEngine Installer', $result['output']);
     }
 
+    public function testRunDropsTargetDirectorySegmentsAboveRoot(): void
+    {
+        // The src root sits several levels below the filesystem root. When the
+        // target contains more '../' segments than the src root has levels, the
+        // excess segments must be dropped and the remainder resolved relative
+        // to the filesystem root (not nested below the src root).
+        $targetDir = sys_get_temp_dir().'/installer_test_'.uniqid('', true).'/dropped';
+        $this->pathsToDelete[] = $targetDir;
+
+        $relativeTargetDir = str_repeat('../', 24).substr($targetDir, 1);
+        $result = $this->runInstaller(['target_directory' => $relativeTargetDir]);
+        $this->assertStringContainsString('OakEngine Installer', $result['output']);
+        $this->assertDirectoryExists($targetDir);
+    }
+
     public function testRunRendersUpdatesViewWithCache(): void
     {
         $cacheDir = $this->createTempDirectory();

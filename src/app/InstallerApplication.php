@@ -58,7 +58,7 @@ final class InstallerApplication
         $skip = max(0, $depth - $upLevels);
 
         $prefix = $parent;
-        for ($i = 0; $i < $upLevels - $skip; ++$i) {
+        for ($i = 0; $i < $depth - $skip; ++$i) {
             $prefix = dirname($prefix);
         }
 
@@ -586,133 +586,38 @@ final class InstallerApplication
                     default => $runnerClient,
                 };
 
-                $package = $packageClient->getPackage($packageId, '' !== $packageVersion ? $packageVersion : null);
-                $packageArchivePath = $packageClient->downloadPackage($package['package_id'], $package['version']);
-
-                $packageDir = 'runner' === $packageType
-                    ? ''
-                    : resolvePackageInstallDirFromMetadata(is_array($package['composer'] ?? null) ? $package['composer'] : [], $packageType);
-                $packageTargetDir = resolvePackageInstallTargetDir((string) $targetDirStr, $packageType, $packageDir);
-
-                $oldManifest = $manifestManager->loadManifest($packageTargetDir);
-                $cleanResult = ['deleted_count' => 0, 'preserved' => [], 'failed' => []];
                 $configuredLogDir = '';
                 if (isset($config['log_directory']) && is_scalar($config['log_directory'])) {
                     $configuredLogDir = trim((string) $config['log_directory']);
                 }
                 $logContext = installerLogBaseDirectory($projectRoot, $configuredLogDir);
-                if (null === $oldManifest) {
-                    logInstallerEvent(
-                        $logContext,
-                        'info',
-                        'Starting install without previous manifest: cleaning target directory',
-                        ['package_type' => $packageType, 'target_dir' => (string) $targetDirFinal]
-                    );
-                    $cleanResult = cleanTargetDirectory($packageTargetDir, $logContext);
-                } else {
-                    logInstallerEvent(
-                        $logContext,
-                        'info',
-                        'Starting install with previous manifest',
-                        [
-                            'package_type' => $packageType,
-                            'previous_version' => $oldManifest['version'],
-                            'tracked_files' => count($oldManifest['files']),
-                        ]
-                    );
-                }
 
-                try {
-                    $extractZipResult = $archiveExtractor->extractTarGzFile(
-                        $packageArchivePath,
-                        $packageTargetDir,
-                        $excludeFolders,
-                        $excludeFiles,
-                    );
-                } finally {
-                    if (is_file($packageArchivePath)) {
-                        @unlink($packageArchivePath);
-                    }
-                }
-                $envPath = rtrim((string) $targetDirStr, '/').'/.env.local';
-                $composerMetadataSources = resolveProjectEnvComposerMetadataSources((string) $targetDirStr);
-                $envSyncResult = syncPackageEnvComposerMetadataSourcesToEnvLocalDetailed(
-                    $envPath,
-                    $composerMetadataSources,
-                );
+                $result = runPackageInstallation([
+                    'package_type' => $packageType,
+                    'client' => $packageClient,
+                    'target_dir' => (string) $targetDirStr,
+                    'package_id' => $packageId,
+                    'package_version' => $packageVersion,
+                    'exclude_folders' => $excludeFolders,
+                    'exclude_files' => $excludeFiles,
+                    'manifest_manager' => $manifestManager,
+                    'archive_extractor' => $archiveExtractor,
+                    'install_uuid_manager' => $installUuidManager,
+                    'app_secret_manager' => $appSecretManager,
+                    'log_context' => $logContext,
+                ]);
 
-                if ('runner' === $packageType) {
-                    $installUuidManager->ensureEnvLocalInstallUuid($envPath);
-                    $appSecretManager->ensureEnvLocalAppSecret($envPath);
-                }
-
-                /** @var list<string> $extractedFiles */
-                $extractedFiles = $extractZipResult['extracted'];
-                $newManifest = $manifestManager->buildManifest(
-                    $packageTargetDir,
-                    $packageType,
-                    $package['package_id'],
-                    $package['version'],
-                    $extractedFiles,
-                );
-                $manifestManager->saveManifest($packageTargetDir, $newManifest);
-
-                $staleFiles = $manifestManager->diffStaleFiles($oldManifest, $newManifest);
-                $staleResult = ['deleted_files' => [], 'deleted_dirs' => [], 'errors' => []];
-                $extraRemovedDirs = [];
-                if ([] !== $staleFiles) {
-                    logInstallerEvent(
-                        $logContext,
-                        'info',
-                        'Starting stale file cleanup',
-                        [
-                            'package_type' => $packageType,
-                            'previous_version' => null !== $oldManifest ? $oldManifest['version'] : '',
-                            'new_version' => $package['version'],
-                            'stale_files' => count($staleFiles),
-                        ]
-                    );
-                    $staleResult = $manifestManager->deleteStaleFilesAndEmptyDirs(
-                        $packageTargetDir,
-                        $staleFiles,
-                        $logContext
-                    );
-                } else {
-                    logInstallerEvent(
-                        $logContext,
-                        'info',
-                        'No stale files to remove',
-                        ['package_type' => $packageType, 'new_version' => $package['version']]
-                    );
-                    $extraRemovedDirs = $manifestManager->removeEmptyDirectoriesIn($packageTargetDir, $logContext);
-                }
-
-                $extractedCount = count($extractZipResult['extracted']);
-                $skippedFilesCount = count($extractZipResult['skipped_files']);
-                $skippedFoldersCount = count($extractZipResult['skipped_folders']);
-                $preservedCount = count($cleanResult['preserved']);
-                $cleanFailedCount = count($cleanResult['failed'] ?? []);
-                $staleDeletedCount = count($staleResult['deleted_files']);
-                $staleDirsCount = count($staleResult['deleted_dirs']) + count($extraRemovedDirs);
-                $staleErrorCount = count($staleResult['errors']);
-
-                $previousVersion = null !== $oldManifest ? $oldManifest['version'] : null;
-                logInstallerPackageSummary(
-                    $logContext,
-                    $packageType,
-                    (string) $package['package_id'],
-                    [
-                        'previous_version' => $previousVersion,
-                        'new_version' => (string) $package['version'],
-                        'files_added' => $extractedCount,
-                        'files_removed' => $staleDeletedCount + $cleanResult['deleted_count'],
-                        'dirs_removed' => $staleDirsCount,
-                        'errors' => $staleErrorCount + $cleanFailedCount,
-                    ]
-                );
+                $extractedCount = $result['extracted_count'];
+                $skippedFilesCount = $result['skipped_files_count'];
+                $skippedFoldersCount = $result['skipped_folders_count'];
+                $preservedCount = $result['clean_preserved_count'];
+                $cleanFailedCount = $result['clean_failed_count'];
+                $staleDeletedCount = $result['stale_deleted_count'];
+                $staleDirsCount = $result['stale_dirs_count'];
+                $staleErrorCount = $result['stale_error_count'];
 
                 $content = '<div class="success">'.resolveLangKey('installation_successful', $langForGlobal).'<br>';
-                $content .= resolveLangKey('files_extracted', $langForGlobal, ['count' => $extractedCount, 'dir' => htmlspecialchars($packageTargetDir)]);
+                $content .= resolveLangKey('files_extracted', $langForGlobal, ['count' => $extractedCount, 'dir' => htmlspecialchars($result['target_dir'])]);
                 if ($staleDeletedCount > 0 || $staleDirsCount > 0) {
                     $content .= '<br>'.resolveLangKey('stale_files_removed', $langForGlobal, ['files' => $staleDeletedCount, 'dirs' => $staleDirsCount]);
                 }
@@ -724,39 +629,40 @@ final class InstallerApplication
                 }
                 $content .= '</div>';
 
-                if ([] !== $envSyncResult['written_lines'] || [] !== $envSyncResult['skipped_existing_lines']) {
+                if ([] !== $result['env_written_lines'] || [] !== $result['env_skipped_lines']) {
                     $content .= '<div class="success"><strong>.env.local</strong><ul class="file-list">';
-                    $content .= '<li>'.resolveLangKey('env_values_created', $langForGlobal, ['count' => count($envSyncResult['written_lines'])]).'</li>';
-                    foreach ($envSyncResult['written_lines'] as $writtenEnvLine) {
+                    $content .= '<li>'.resolveLangKey('env_values_created', $langForGlobal, ['count' => count($result['env_written_lines'])]).'</li>';
+                    foreach ($result['env_written_lines'] as $writtenEnvLine) {
                         $content .= '<li><code>'.htmlspecialchars($writtenEnvLine).'</code></li>';
                     }
-                    $content .= '<li>'.resolveLangKey('env_values_skipped_existing', $langForGlobal, ['count' => count($envSyncResult['skipped_existing_lines'])]).'</li>';
-                    foreach ($envSyncResult['skipped_existing_lines'] as $skippedEnvLine) {
+                    $content .= '<li>'.resolveLangKey('env_values_skipped_existing', $langForGlobal, ['count' => count($result['env_skipped_lines'])]).'</li>';
+                    foreach ($result['env_skipped_lines'] as $skippedEnvLine) {
                         $content .= '<li><code>'.htmlspecialchars($skippedEnvLine).'</code></li>';
                     }
                     $content .= '</ul></div>';
                 }
 
+                $composerMetadataSources = resolveProjectEnvComposerMetadataSources((string) $targetDirStr);
                 $content .= renderComposerMetadataSourceListHtml($composerMetadataSources, $langForGlobal);
 
                 if ($staleDeletedCount > 0) {
                     $content .= '<div class="warning"><strong>'.resolveLangKey('removed_files_title', $langForGlobal).'</strong><ul class="file-list">';
-                    foreach (array_slice($staleResult['deleted_files'], 0, 20) as $item) {
+                    foreach ($result['stale_deleted_samples'] as $item) {
                         $content .= '<li>'.htmlspecialchars((string) $item).'</li>';
                     }
-                    if ($staleDeletedCount > 20) {
-                        $content .= '<li><em>'.resolveLangKey('and_more', $langForGlobal, ['count' => ($staleDeletedCount - 20)]).'</em></li>';
+                    if ($staleDeletedCount > count($result['stale_deleted_samples'])) {
+                        $content .= '<li><em>'.resolveLangKey('and_more', $langForGlobal, ['count' => ($staleDeletedCount - count($result['stale_deleted_samples']))]).'</em></li>';
                     }
                     $content .= '</ul></div>';
                 }
 
                 if ($preservedCount > 0) {
                     $content .= '<div class="warning"><strong>'.resolveLangKey('preserved_list_title', $langForGlobal).'</strong><ul class="file-list">';
-                    foreach (array_slice($cleanResult['preserved'], 0, 20) as $item) {
+                    foreach ($result['clean_preserved_samples'] as $item) {
                         $content .= '<li>'.htmlspecialchars((string) $item).'</li>';
                     }
-                    if ($preservedCount > 20) {
-                        $content .= '<li><em>'.resolveLangKey('and_more', $langForGlobal, ['count' => ($preservedCount - 20)]).'</em></li>';
+                    if ($preservedCount > count($result['clean_preserved_samples'])) {
+                        $content .= '<li><em>'.resolveLangKey('and_more', $langForGlobal, ['count' => ($preservedCount - count($result['clean_preserved_samples']))]).'</em></li>';
                     }
                     $content .= '</ul></div>';
                 }
@@ -765,7 +671,7 @@ final class InstallerApplication
                     $content .= '<div class="warning"><strong>'.resolveLangKey('cleanup_warnings_title', $langForGlobal).'</strong>';
                     $content .= '<p><small>'.resolveLangKey('cleanup_warnings_help', $langForGlobal, ['path' => htmlspecialchars(installerLogPath($logContext))]).'</small></p>';
                     $content .= '<ul class="file-list">';
-                    foreach ($staleResult['errors'] as $erroredPath) {
+                    foreach ($result['stale_error_samples'] as $erroredPath) {
                         $content .= '<li><code>'.htmlspecialchars((string) $erroredPath).'</code></li>';
                     }
                     $content .= '</ul></div>';
@@ -773,22 +679,264 @@ final class InstallerApplication
                     $content .= '<div class="warning"><strong>'.resolveLangKey('cleanup_warnings_title', $langForGlobal).'</strong>';
                     $content .= '<p><small>'.resolveLangKey('cleanup_warnings_help', $langForGlobal, ['path' => htmlspecialchars(installerLogPath($logContext))]).'</small></p>';
                     $content .= '<ul class="file-list">';
-                    foreach (($cleanResult['failed'] ?? []) as $erroredPath) {
+                    foreach ($result['clean_failed_samples'] as $erroredPath) {
                         $content .= '<li><code>'.htmlspecialchars((string) $erroredPath).'</code></li>';
                     }
                     $content .= '</ul></div>';
                 }
 
                 $content .= '<a href="'.htmlspecialchars((string) $dashboardBackHref).'" class="back-link">'.htmlspecialchars((string) resolveLangKey('back', $langForGlobal)).'</a><h3>'.htmlspecialchars((string) resolveLangKey('installed_files', $langForGlobal)).'</h3><ul class="file-list">';
-                $slice = array_slice($extractedFiles, 0, 50);
-                foreach ($slice as $file) {
-                    $content .= '<li>'.htmlspecialchars($file).'</li>';
+                foreach ($result['extracted_files_sample'] as $file) {
+                    $content .= '<li>'.htmlspecialchars((string) $file).'</li>';
                 }
-                if ($extractedCount > 50) {
-                    $content .= '<li><em>'.resolveLangKey('and_more', $langForGlobal, ['count' => ($extractedCount - 50)]).'</em></li>';
+                if ($extractedCount > count($result['extracted_files_sample'])) {
+                    $content .= '<li><em>'.resolveLangKey('and_more', $langForGlobal, ['count' => ($extractedCount - count($result['extracted_files_sample']))]).'</em></li>';
                 }
                 $content .= '</ul>';
                 echo renderPage(resolveLangKey('installation_successful', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''), $dashboardState['view']);
+
+                return;
+            }
+
+            if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['install_all'])) {
+                $setupNotice = '';
+                $visEmail = '';
+                if (isset($_POST['vis_admin_email']) && is_scalar($_POST['vis_admin_email'])) {
+                    $visEmail = strtolower(trim((string) $_POST['vis_admin_email']));
+                }
+                $visPassword = '';
+                if (isset($_POST['vis_admin_password']) && is_scalar($_POST['vis_admin_password'])) {
+                    $visPassword = (string) $_POST['vis_admin_password'];
+                }
+                $visPasswordRepeat = '';
+                if (isset($_POST['vis_admin_password_repeat']) && is_scalar($_POST['vis_admin_password_repeat'])) {
+                    $visPasswordRepeat = (string) $_POST['vis_admin_password_repeat'];
+                }
+
+                $configuredLogDir = '';
+                if (isset($config['log_directory']) && is_scalar($config['log_directory'])) {
+                    $configuredLogDir = trim((string) $config['log_directory']);
+                }
+                $logContext = installerLogBaseDirectory($projectRoot, $configuredLogDir);
+
+                // 1. Validate the VIS admin credentials before touching anything.
+                if ('' === $visEmail || !filter_var($visEmail, FILTER_VALIDATE_EMAIL)) {
+                    renderSetupView($targetDirFinal, $runnerClient, $pluginClient, $dataClient, $config, $langForGlobal, 'vis_users_error_invalid_email');
+
+                    return;
+                }
+                if (strlen($visPassword) < 8) {
+                    renderSetupView($targetDirFinal, $runnerClient, $pluginClient, $dataClient, $config, $langForGlobal, 'vis_users_error_password_short');
+
+                    return;
+                }
+                if ($visPassword !== $visPasswordRepeat) {
+                    renderSetupView($targetDirFinal, $runnerClient, $pluginClient, $dataClient, $config, $langForGlobal, 'vis_users_error_password_mismatch');
+
+                    return;
+                }
+
+                // 2. Resolve packages: runner (newest), plugin/data via config defaults.
+                $setupPackagesConfig = is_array($config['setup_packages'] ?? null) ? $config['setup_packages'] : [];
+                $runnerPackage = pickSetupPackage('', $runnerClient->listPackages());
+                $pluginPackage = pickSetupPackage(is_scalar($setupPackagesConfig['plugin'] ?? null) ? (string) $setupPackagesConfig['plugin'] : '', $pluginClient->listPackages());
+                $dataPackage = pickSetupPackage(is_scalar($setupPackagesConfig['data'] ?? null) ? (string) $setupPackagesConfig['data'] : '', $dataClient->listPackages());
+
+                if (null === $runnerPackage || null === $pluginPackage) {
+                    throw new RuntimeException(resolveLangKey('setup_error_no_packages', $langForGlobal));
+                }
+
+                $installedResults = [];
+                $setupSteps = [
+                    ['runner', $runnerClient, $runnerPackage],
+                    ['plugin', $pluginClient, $pluginPackage],
+                    ['data', $dataClient, $dataPackage],
+                ];
+
+                foreach ($setupSteps as $step) {
+                    [$stepType, $stepClient, $stepPackage] = $step;
+                    if (null === $stepPackage) {
+                        continue;
+                    }
+                    $installedResults[] = runPackageInstallation([
+                        'package_type' => $stepType,
+                        'client' => $stepClient,
+                        'target_dir' => (string) $targetDirStr,
+                        'package_id' => (string) $stepPackage['package_id'],
+                        'package_version' => (string) $stepPackage['version'],
+                        'exclude_folders' => $excludeFolders,
+                        'exclude_files' => $excludeFiles,
+                        'manifest_manager' => $manifestManager,
+                        'archive_extractor' => $archiveExtractor,
+                        'install_uuid_manager' => $installUuidManager,
+                        'app_secret_manager' => $appSecretManager,
+                        'log_context' => $logContext,
+                    ]);
+                }
+
+                $failedResults = array_values(array_filter($installedResults, static fn (array $item): bool => !$item['ok']));
+                if ([] !== $failedResults) {
+                    $errorMessages = [];
+                    foreach ($failedResults as $failedResult) {
+                        $errorMessages[] = $failedResult['package_type'].': '.$failedResult['error'];
+                    }
+                    throw new RuntimeException(implode('<br>', array_map('htmlspecialchars', $errorMessages)));
+                }
+
+                // 3. Seed the initial VIS admin (never overwrites an existing users file).
+                $visSeed = seedInitialVisAdmin((string) $targetDirFinal, $visEmail, $visPassword);
+
+                // 4. Register INSTALL_UUID on the distribution server for updates.
+                $installUuidRegistered = false;
+                try {
+                    $envUuid = '';
+                    $envContent = @file_get_contents(rtrim((string) $targetDirFinal, '/').'/.env.local');
+                    if (false !== $envContent && preg_match('/^INSTALL_UUID\s*=\s*(\S+)/m', $envContent, $m)) {
+                        $envUuid = trim($m[1]);
+                    }
+                    if ('' !== $envUuid && '' !== $projectApiUrl && '' !== $projectApiToken) {
+                        $ch = curl_init($projectApiUrl.'?register_install_uuid=1');
+                        curl_setopt_array($ch, [
+                            CURLOPT_POST => true,
+                            CURLOPT_RETURNTRANSFER => true,
+                            CURLOPT_TIMEOUT => 15,
+                            CURLOPT_HTTPHEADER => [
+                                'Accept: application/json',
+                                'Authorization: Bearer '.$projectApiToken,
+                                'Content-Type: application/x-www-form-urlencoded',
+                            ],
+                            CURLOPT_POSTFIELDS => http_build_query(['install_uuid' => strtolower($envUuid)]),
+                        ]);
+                        $regResponse = curl_exec($ch);
+                        $regCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
+                        $installUuidRegistered = $regCode >= 200 && $regCode < 300;
+                    }
+                } catch (\Throwable $uuidException) {
+                    // Non-blocking: installation continues even if UUID registration fails.
+                }
+
+                // 5. Result page.
+                $content = '<div class="success"><strong>'.resolveLangKey('setup_done_title', $langForGlobal).'</strong><br>'
+                    .resolveLangKey('setup_done_subtitle', $langForGlobal).'</div>';
+
+                $content .= '<article class="home-card updates-section-card">'
+                    .'<div class="home-card-header home-card-header--static">'
+                    .'<span class="home-card-title"><span class="home-card-icon" aria-hidden="true">'.lucideIcon('download', 14).'</span>'.resolveLangKey('setup_section_installed', $langForGlobal).'</span>'
+                    .'</div><div class="updates-list"><ul class="tag-list">';
+                foreach ($installedResults as $installedResult) {
+                    $content .= '<li><span class="ref-item-info"><span class="tag-name">'.htmlspecialchars(resolveLangKey('setup_package_'.$installedResult['package_type'], $langForGlobal)).': '.htmlspecialchars($installedResult['package_id']).'</span>'
+                        .'<span class="commit-sha">'.htmlspecialchars($installedResult['package_version']).' · '.htmlspecialchars((string) $installedResult['extracted_count']).' '.resolveLangKey('setup_files_suffix', $langForGlobal).'</span></span></li>';
+                }
+                $content .= '</ul></div></article>';
+
+                $content .= '<article class="home-card updates-section-card">'
+                    .'<div class="home-card-header home-card-header--static">'
+                    .'<span class="home-card-title"><span class="home-card-icon" aria-hidden="true">'.lucideIcon('fingerprint', 14).'</span>'.resolveLangKey('setup_section_uuid', $langForGlobal).'</span>'
+                    .'</div><div class="updates-list">'
+                    .($installUuidRegistered
+                        ? '<p class="updates-empty">'.resolveLangKey('setup_uuid_registered', $langForGlobal).'</p>'
+                        : '<p class="updates-empty">'.resolveLangKey('setup_uuid_not_registered', $langForGlobal).'</p>')
+                    .'</div></article>';
+
+                $content .= '<article class="home-card updates-section-card">'
+                    .'<div class="home-card-header home-card-header--static">'
+                    .'<span class="home-card-title"><span class="home-card-icon" aria-hidden="true">'.lucideIcon('info', 14).'</span>'.resolveLangKey('setup_section_vis', $langForGlobal).'</span>'
+                    .'</div><div class="updates-list">';
+                if ($visSeed['skipped']) {
+                    $content .= '<p class="updates-empty">'.resolveLangKey('setup_vis_skipped', $langForGlobal).'</p>';
+                } elseif ($visSeed['ok']) {
+                    $content .= '<p class="updates-empty">'.resolveLangKey('setup_vis_created', $langForGlobal, ['email' => htmlspecialchars($visEmail)]).'</p>';
+                } else {
+                    $content .= '<p class="updates-empty">'.resolveLangKey($visSeed['error'], $langForGlobal).'</p>';
+                }
+                $content .= '<p class="updates-empty">'.resolveLangKey('setup_vis_login_hint', $langForGlobal).'</p>';
+                $content .= '</div></article>';
+
+                $content .= '<article class="home-card updates-section-card">'
+                    .'<div class="home-card-header home-card-header--static">'
+                    .'<span class="home-card-title"><span class="home-card-icon" aria-hidden="true">'.lucideIcon('arrow-right', 14).'</span>'.resolveLangKey('setup_section_next', $langForGlobal).'</span>'
+                    .'</div><div class="updates-list"><ul class="tag-list">'
+                    .'<li>'.resolveLangKey('setup_next_docroot', $langForGlobal, ['dir' => '<code>'.htmlspecialchars((string) $targetDirFinal).'/public</code>']).'</li>'
+                    .'<li>'.resolveLangKey('setup_next_updates', $langForGlobal).'</li>'
+                    .'</ul></div></article>';
+
+                $envPath = rtrim((string) $targetDirStr, '/').'/.env.local';
+                echo renderPage(resolveLangKey('setup_done_title', $langForGlobal), $content, null, $envPath, !empty($config['password'] ?? ''), 'setup');
+
+                return;
+            }
+
+            if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['vis_user_create'])) {
+                $createEmail = '';
+                if (isset($_POST['vis_user_email']) && is_scalar($_POST['vis_user_email'])) {
+                    $createEmail = (string) $_POST['vis_user_email'];
+                }
+                $createPassword = '';
+                if (isset($_POST['vis_user_password']) && is_scalar($_POST['vis_user_password'])) {
+                    $createPassword = (string) $_POST['vis_user_password'];
+                }
+                $createRoles = isset($_POST['vis_user_roles']) && is_array($_POST['vis_user_roles']) ? array_values(array_map('strval', $_POST['vis_user_roles'])) : [];
+
+                $createResult = createVisUser((string) $targetDirFinal, $createEmail, $createPassword, $createRoles);
+                $setupNotice = $createResult['ok']
+                    ? '<div class="success">'.resolveLangKey('vis_users_created', $langForGlobal, ['email' => htmlspecialchars(strtolower(trim($createEmail)))]).'</div>'
+                    : '<div class="error">'.resolveLangKey($createResult['error'], $langForGlobal).'</div>';
+
+                renderVisUsersView((string) $targetDirFinal, $langForGlobal, $setupNotice);
+
+                return;
+            }
+
+            if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['vis_user_password'])) {
+                $passwordUserId = '';
+                if (isset($_POST['vis_user_id']) && is_scalar($_POST['vis_user_id'])) {
+                    $passwordUserId = (string) $_POST['vis_user_id'];
+                }
+                $newPassword = '';
+                if (isset($_POST['vis_user_new_password']) && is_scalar($_POST['vis_user_new_password'])) {
+                    $newPassword = (string) $_POST['vis_user_new_password'];
+                }
+
+                $passwordResult = updateVisUserPassword((string) $targetDirFinal, $passwordUserId, $newPassword);
+                $setupNotice = $passwordResult['ok']
+                    ? '<div class="success">'.resolveLangKey('vis_users_password_changed', $langForGlobal).'</div>'
+                    : '<div class="error">'.resolveLangKey($passwordResult['error'], $langForGlobal).'</div>';
+
+                renderVisUsersView((string) $targetDirFinal, $langForGlobal, $setupNotice);
+
+                return;
+            }
+
+            if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['vis_user_roles'])) {
+                $rolesUserId = '';
+                if (isset($_POST['vis_user_id']) && is_scalar($_POST['vis_user_id'])) {
+                    $rolesUserId = (string) $_POST['vis_user_id'];
+                }
+                $newRoles = isset($_POST['vis_user_roles']) && is_array($_POST['vis_user_roles']) ? array_values(array_map('strval', $_POST['vis_user_roles'])) : [];
+
+                $rolesResult = updateVisUserRoles((string) $targetDirFinal, $rolesUserId, $newRoles);
+                $setupNotice = $rolesResult['ok']
+                    ? '<div class="success">'.resolveLangKey('vis_users_roles_changed', $langForGlobal).'</div>'
+                    : '<div class="error">'.resolveLangKey($rolesResult['error'], $langForGlobal).'</div>';
+
+                renderVisUsersView((string) $targetDirFinal, $langForGlobal, $setupNotice);
+
+                return;
+            }
+
+            if ('POST' === $_SERVER['REQUEST_METHOD'] && isset($_POST['vis_user_delete'])) {
+                $deleteUserId = '';
+                if (isset($_POST['vis_user_id']) && is_scalar($_POST['vis_user_id'])) {
+                    $deleteUserId = (string) $_POST['vis_user_id'];
+                }
+
+                $deleteResult = deleteVisUser((string) $targetDirFinal, $deleteUserId);
+                $setupNotice = $deleteResult['ok']
+                    ? '<div class="success">'.resolveLangKey('vis_users_deleted', $langForGlobal).'</div>'
+                    : '<div class="error">'.resolveLangKey($deleteResult['error'], $langForGlobal).'</div>';
+
+                renderVisUsersView((string) $targetDirFinal, $langForGlobal, $setupNotice);
 
                 return;
             }
@@ -1121,6 +1269,14 @@ final class InstallerApplication
                     .'</div>';
             } elseif (in_array($view, ['environment', 'databases', 'install-uuid'], true)) {
                 $content = '';
+            } elseif ('setup' === $view) {
+                renderSetupView((string) $targetDirFinal, $runnerClient, $pluginClient, $dataClient, $config, $langForGlobal);
+
+                return;
+            } elseif ('vis-users' === $view) {
+                renderVisUsersView((string) $targetDirFinal, $langForGlobal);
+
+                return;
             } elseif ('system' === $view) {
                 $content = '<div class="home-stack">'
                     .renderHomeSections(
@@ -1136,7 +1292,9 @@ final class InstallerApplication
                     resolveLangKey('welcome_title', $langForGlobal),
                     resolveLangKey('welcome_subtitle', $langForGlobal),
                     [
+                        ['label' => resolveLangKey('setup_nav', $langForGlobal), 'href' => '?view=setup', 'icon' => 'sparkles'],
                         ['label' => resolveLangKey('welcome_link_installations', $langForGlobal), 'href' => '?view=updates', 'icon' => 'download'],
+                        ['label' => resolveLangKey('vis_users_nav', $langForGlobal), 'href' => '?view=vis-users', 'icon' => 'users'],
                         ['label' => resolveLangKey('welcome_link_installer', $langForGlobal), 'href' => '?view=installer', 'icon' => 'wrench'],
                         ['label' => resolveLangKey('welcome_link_documentation', $langForGlobal), 'href' => 'https://github.com/oakengine/installer', 'icon' => 'external-link', 'external' => true],
                     ],
